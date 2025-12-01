@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sopa de Letras - Desafío Mental</title>
+    <!-- Enlace a los estilos CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <div id="background-animation"></div>
+
+    <!-- MENÚ PRINCIPAL -->
+    <div id="menu-screen">
+        <!-- TÍTULO ANIMADO CON FICHAS -->
+        <div class="title-container">
+            <div class="title-row">
+                <div class="title-tile" style="animation-delay: 0.1s">S</div>
+                <div class="title-tile" style="animation-delay: 0.2s">O</div>
+                <div class="title-tile" style="animation-delay: 0.3s">P</div>
+                <div class="title-tile" style="animation-delay: 0.4s">A</div>
+            </div>
+            <div class="title-row">
+                <div class="title-tile" style="animation-delay: 0.5s">D</div>
+                <div class="title-tile" style="animation-delay: 0.6s">E</div>
+                <div class="title-spacer"></div>
+                <div class="title-tile" style="animation-delay: 0.7s">L</div>
+                <div class="title-tile" style="animation-delay: 0.8s">E</div>
+                <div class="title-tile" style="animation-delay: 0.9s">T</div>
+                <div class="title-tile" style="animation-delay: 1.0s">R</div>
+                <div class="title-tile" style="animation-delay: 1.1s">A</div>
+                <div class="title-tile" style="animation-delay: 1.2s">S</div>
+            </div>
+        </div>
+
+        <p style="font-size: 1.2rem; opacity: 0.9; margin-top: 10px; text-align: center; max-width: 90%;">Desafía tu mente y llega a lo más alto</p>
+        
+        <div class="menu-buttons">
+            <button class="btn-start" onclick="showModeSelection()">
+                <span class="btn-text">JUGAR</span>
+            </button>
+            <button class="btn-start" onclick="showScoreboard()">
+                <span class="btn-text">SCORE GLOBAL 🏆</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- SELECCIÓN DE MODO -->
+    <div id="mode-screen" class="hidden">
+        <h2>Elige tu desafío</h2>
+        <div style="display: flex; flex-direction: column; gap: 20px; align-items: center;">
+            <div class="mode-btn" onclick="startMode('traditional')">
+                <span class="mode-title">Tradicional 🧘</span>
+                <span class="mode-desc">Sin prisa. Tu tiempo se suma al final.</span>
+            </div>
+            <div class="mode-btn elimination" onclick="startMode('elimination')">
+                <span class="mode-title">Eliminación ⏳</span>
+                <span class="mode-desc">Cuenta regresiva. ¡Gana tiempo encontrando palabras!</span>
+            </div>
+        </div>
+        <button class="menu-btn" style="position: relative; margin-top: 30px;" onclick="goToMenu()">Volver</button>
+    </div>
+
+    <!-- PANTALLA SCOREBOARD -->
+    <div id="scoreboard-screen" class="hidden">
+        <h2 style="font-size: 3rem; color: #ffd700; margin-bottom: 20px;">Mejores Tiempos</h2>
+        <ul id="score-list" class="score-list">
+            <li class="score-item">Cargando...</li>
+        </ul>
+        <button class="menu-btn" style="position: relative; top:0; left:0; margin-top: 30px;" onclick="goToMenu()">Volver</button>
+    </div>
+
+    <!-- PANTALLA DE JUEGO -->
+    <div id="game-screen" class="hidden">
+        <button class="menu-btn" onclick="confirmExit()">Menú</button>
+        <button class="debug-btn" onclick="solveLevel()">⚡</button>
+
+        <div class="info-bar">
+            <div class="info-pill" id="level-indicator">Nivel 1</div>
+            <div class="info-pill" id="timer">00:00</div>
+        </div>
+
+        <div id="status-msg">Selecciona inicio y fin</div>
+
+        <div class="game-layout">
+            <div class="grid-wrapper">
+                <div id="grid"></div>
+            </div>
+            <div class="words-panel">
+                <h3>Palabras Ocultas</h3>
+                <ul id="word-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL CONFIRMACIÓN -->
+    <div id="confirm-modal" class="hidden">
+        <div class="modal-content">
+            <span class="thinking-emoji">🤔</span>
+            <h3>¿Salir al Menú?</h3>
+            <p>Perderás tu progreso actual.</p>
+            <div class="modal-buttons">
+                <button class="modal-btn btn-yes" onclick="goToMenu()">Sí, salir</button>
+                <button class="modal-btn btn-no" onclick="closeConfirm()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- GAME OVER SCREEN (SOLO ELIMINACIÓN) -->
+    <div id="game-over-screen" class="hidden">
+        <h2>¡Tiempo Agotado!</h2>
+        <!-- Contenedor centrado para los botones -->
+        <div id="revive-container">
+            <p style="margin-bottom: 10px; font-size: 1.1rem; opacity: 0.9;">¿Quieres una segunda oportunidad?</p>
+            <button class="btn-revive" onclick="revivePlayer()">❤️ Revivir (+30s)</button>
+        </div>
+        <!-- Nuevo estilo de botón secundario -->
+        <button class="btn-secondary" onclick="goToMenu()">Salir al Menú</button>
+    </div>
+
+    <!-- PANTALLA NIVEL COMPLETADO / FINAL -->
+    <div id="level-complete-screen" class="hidden">
+        <h2 id="level-complete-title">¡Nivel Completado!</h2>
+        <div id="level-stats">Tiempo Total: 00:00</div>
+        
+        <button id="btn-next" class="btn-start" onclick="nextLevelWithAnimation()">
+            <span class="btn-text">Siguiente Nivel</span>
+        </button>
+
+        <div id="final-form" class="hidden">
+            <input type="text" id="player-name-input" placeholder="Tu Nombre (Máx 14)" maxlength="14">
+            <button id="btn-save" class="btn-start" onclick="saveScore()">
+                <span class="btn-text">Guardar</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Enlace al archivo de lógica JavaScript -->
+    <script type="module" src="funcionalidad.js"></script>
+</body>
+</html>
