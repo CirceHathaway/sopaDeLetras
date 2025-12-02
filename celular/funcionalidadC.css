@@ -1,0 +1,86 @@
+@media (max-width: 599px) {
+    
+    /* HEADER ALINEADO A LA IZQUIERDA */
+    .header-compact {
+        padding: 5px 10px;
+        justify-content: flex-start; /* Todo a la izquierda */
+        gap: 10px;
+    }
+
+    /* Contenedor auxiliar para agrupar botón y pills si no existiera, 
+       pero como usamos la estructura original, aplicamos estilos directos */
+    
+    /* Forzar alineación de elementos */
+    .menu-btn-compact {
+        margin: 0;
+        font-size: 0.8rem;
+        padding: 6px 12px;
+        order: 1;
+    }
+
+    /* Nivel y Tiempo pegados al botón */
+    .info-pill {
+        padding: 4px 8px;
+        font-size: 0.8rem;
+        min-width: auto;
+    }
+    /* Pill Nivel */
+    #level-indicator { order: 2; }
+    /* Pill Tiempo */
+    #timer { order: 3; }
+    
+    /* Botón Debug (Rayo) a la derecha absoluta */
+    .debug-btn {
+        position: absolute;
+        right: 10px;
+        top: 8px;
+    }
+
+    /* --- GRID MAXIMIZADO --- */
+    .game-layout {
+        padding: 0;
+        gap: 0;
+        justify-content: space-between;
+    }
+
+    .grid-wrapper {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        border-radius: 0; 
+        padding: 2px; /* Fichas casi tocando el borde */
+        
+        /* Ocupar todo el alto */
+        flex-grow: 1; 
+        max-height: none; 
+        
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #grid {
+        gap: 1px; /* Gap mínimo */
+    }
+
+    /* --- PANEL PALABRAS (4 MAX) --- */
+    .words-panel {
+        height: 90px; /* Altura pequeña fija */
+        max-height: 90px;
+        padding: 5px;
+        border-radius: 0;
+    }
+
+    #word-list {
+        gap: 4px;
+    }
+    
+    #word-list li {
+        font-size: 0.75rem;
+        padding: 2px 6px;
+    }
+
+    /* Ajustes Menu */
+    .title-tile { width: 32px; height: 32px; font-size: 16px; }
+    .menu-buttons { flex-direction: column; gap: 10px; }
+}

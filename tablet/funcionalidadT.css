@@ -1,0 +1,48 @@
+@media (min-width: 600px) and (max-width: 1024px) {
+    /* Header a la izquierda */
+    .header-compact {
+        padding: 10px 20px;
+        justify-content: flex-start;
+        gap: 20px;
+    }
+
+    .header-left-group {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+    
+    .menu-btn-compact { order: 1; margin-right: 10px; }
+    .info-group { order: 2; display: flex; gap: 10px; }
+
+    .debug-btn {
+        position: absolute;
+        right: 20px;
+        top: 15px;
+    }
+
+    /* Tablero Maximizado */
+    .game-layout { padding: 0; gap: 0; }
+    
+    .grid-wrapper {
+        width: 98%;
+        max-width: 98%;
+        margin: 5px auto;
+        padding: 2px; /* Mínimo padding */
+        border-radius: 12px;
+        flex-grow: 1;
+        max-height: none;
+    }
+
+    #grid { gap: 2px; }
+
+    /* Panel (4 palabras visible - override a desktop) */
+    .words-panel {
+        height: 130px; /* Altura media */
+        max-height: 130px;
+        padding: 10px;
+        flex-shrink: 0;
+    }
+    
+    #word-list { gap: 6px; }
+}
