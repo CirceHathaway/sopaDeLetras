@@ -2,16 +2,28 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// DETECCIÓN ROBUSTA
+// DETECCIÓN: Ejecutar solo si es celular
 if (window.matchMedia("(max-width: 767px)").matches) {
-    console.log("Modo CELULAR Activo");
+    console.log("--- MODO CELULAR ACTIVADO ---");
 
-    // --- CONFIGURACIÓN ---
+    // Configuración Fija Celular
     const C_ROWS = 14;
     const C_COLS = 10;
     const C_MAX_WORDS = 4;
 
-    // Config Firebase Local
+    // Estado Local (Independiente del escritorio)
+    let c_grid = [];
+    let c_placedWords = [];
+    let c_currentLevelIndex = 0;
+    let c_totalSeconds = 0;
+    let c_levelSeconds = 0;
+    let c_timerInterval;
+    let c_currentGameMode = 'traditional';
+    let c_hasRevived = false;
+    let c_firstSelection = null;
+    let c_isDragging = false;
+
+    // Firebase Local
     const firebaseConfig = {
       apiKey: "AIzaSyBXOH-m6L0kS-0qVSAAh837R-lVIlFt2ZQ",
       authDomain: "sopa-de-letras-1bb46.firebaseapp.com",
@@ -20,16 +32,13 @@ if (window.matchMedia("(max-width: 767px)").matches) {
       messagingSenderId: "931258212814",
       appId: "1:931258212814:web:456b55dadb16602fb9cb9f"
     };
-    
-    let db;
-    let auth;
-    let user;
+    let db, auth, user;
     try {
         const app = initializeApp(firebaseConfig);
         auth = getAuth(app);
         db = getFirestore(app);
-        signInAnonymously(auth).then(u => user = u.user).catch(console.error);
-    } catch (e) {}
+        signInAnonymously(auth).then(u => user = u.user).catch(e=>{});
+    } catch(e){}
 
     const mobileLevels = [
         { level: 1, words: ["SOL", "LUNA", "MAR", "GATO", "PERRO"] },
@@ -44,23 +53,37 @@ if (window.matchMedia("(max-width: 767px)").matches) {
         { level: 10, words: ["EFIMERO", "INEFABLE", "RESILIENCIA", "SEMPITERNO", "ELOCUENCIA", "MELANCOLIA", "SERENDIPIA", "ETEREO", "LIMERENCIA", "ARREBOL", "EPOCA", "SONETO", "ASTRAL", "ETERNO"] }
     ];
 
-    // --- IMPORTANTE: SOBRESCRIBIR PUNTOS DE ENTRADA ---
-    // Esto desconecta la lógica del archivo de escritorio
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playTone(freq, type, duration) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    }
+
+    // --- SOBRESCRIBIR FUNCIONES GLOBALES ---
+    // Esto asegura que los botones llamen a NUESTRA lógica
     
     window.startMode = function(mode) {
-        // Usamos variables globales para compartir estado simple
-        window.currentGameMode = mode;
-        window.currentLevelIndex = 0; 
-        window.totalSeconds = 0;
-        window.hasRevived = false; 
+        c_currentGameMode = mode;
+        c_currentLevelIndex = 0;
+        c_totalSeconds = 0;
+        c_hasRevived = false;
         
-        showScreen('game-screen');
-        // Detener animación fondo si existe
+        document.querySelectorAll('body > div[id$="-screen"]').forEach(div => div.classList.add('hidden'));
+        document.getElementById('game-screen').classList.remove('hidden');
+        
         const bg = document.getElementById('background-animation');
         if(bg) bg.innerHTML = '';
         
-        // LLAMAR A INIT LOCAL
-        initLevelMobile();
+        initLevelC();
     };
 
     window.nextLevelWithAnimation = function() {
@@ -69,221 +92,255 @@ if (window.matchMedia("(max-width: 767px)").matches) {
         btn.classList.add('filling');
         setTimeout(() => {
             btn.classList.remove('filling');
-            window.currentLevelIndex++;
-            showScreen('game-screen');
-            initLevelMobile();
+            c_currentLevelIndex++;
+            document.querySelectorAll('body > div[id$="-screen"]').forEach(div => div.classList.add('hidden'));
+            document.getElementById('game-screen').classList.remove('hidden');
+            initLevelC();
         }, 1500);
     };
 
+    window.solveLevel = function() {
+        c_placedWords.forEach(pw => {
+            if(!pw.found) {
+                pw.found = true;
+                markWordFoundC(pw.coords, pw.word);
+            }
+        });
+        setTimeout(levelCompleteC, 500);
+    };
+
     window.revivePlayer = function() {
-        window.hasRevived = true;
-        window.levelSeconds += 30; 
-        showScreen('game-screen');
-        window.timerInterval = setInterval(() => {
-            window.levelSeconds--;
-            window.totalSeconds++; 
-            updateTimerMobile();
-            if (window.levelSeconds <= 0) window.gameOver();
+        c_hasRevived = true;
+        c_levelSeconds += 30; 
+        document.querySelectorAll('body > div[id$="-screen"]').forEach(div => div.classList.add('hidden'));
+        document.getElementById('game-screen').classList.remove('hidden');
+        c_timerInterval = setInterval(() => {
+            c_levelSeconds--;
+            c_totalSeconds++; 
+            updateTimerC();
+            if (c_levelSeconds <= 0) gameOverC();
         }, 1000);
     };
 
-    window.solveLevel = function() {
-        window.placedWords.forEach(pw => {
-            if(!pw.found) {
-                pw.found = true;
-                markWordFoundMobile(pw.coords, pw.word);
-            }
-        });
-        setTimeout(levelCompleteMobile, 500);
+    window.saveScore = async function() {
+        const name = document.getElementById('player-name-input').value.trim() || "Anónimo";
+        const btnSave = document.getElementById('btn-save');
+        btnSave.classList.add('btn-loading'); 
+        
+        if (db && user) {
+            try {
+                await addDoc(collection(db, 'scores'), { name: name, time: c_totalSeconds, date: new Date().toISOString(), uid: user.uid });
+            } catch (e) {}
+        }
+        window.goToMenu(); // Esta usa la global original que solo cambia pantallas, está bien
+        setTimeout(() => btnSave.classList.remove('btn-loading'), 500);
     };
 
-    // --- LÓGICA CORE CELULAR ---
+    // --- LÓGICA ESPECÍFICA CELULAR ---
 
-    function initLevelMobile() {
-        const idx = window.currentLevelIndex || 0;
-        const levelData = mobileLevels[idx];
-        
+    function initLevelC() {
+        const levelData = mobileLevels[c_currentLevelIndex];
         document.getElementById('level-indicator').textContent = `Nivel ${levelData.level}/10`;
         document.getElementById('status-msg').textContent = "Encuentra las palabras";
+
+        if(c_timerInterval) clearInterval(c_timerInterval);
         
-        if(window.timerInterval) clearInterval(window.timerInterval);
-        
-        if (window.currentGameMode === 'elimination') {
-            window.levelSeconds = levelData.words.length * 12; 
-            updateTimerMobile();
-            window.timerInterval = setInterval(() => {
-                window.levelSeconds--;
-                window.totalSeconds++; 
-                updateTimerMobile();
-                if (window.levelSeconds <= 0) window.gameOver();
+        // Timer
+        if (c_currentGameMode === 'elimination') {
+            c_levelSeconds = levelData.words.length * 12; 
+            updateTimerC();
+            c_timerInterval = setInterval(() => {
+                c_levelSeconds--;
+                c_totalSeconds++; 
+                updateTimerC();
+                if (c_levelSeconds <= 0) gameOverC();
             }, 1000);
         } else {
-            updateTimerMobile();
-            window.timerInterval = setInterval(() => {
-                window.totalSeconds++;
-                updateTimerMobile();
+            updateTimerC();
+            c_timerInterval = setInterval(() => {
+                c_totalSeconds++;
+                updateTimerC();
             }, 1000);
         }
 
-        // Grid Fijo 14x10
-        let grid = Array(C_ROWS).fill(null).map(() => Array(C_COLS).fill(''));
-        let placedWords = [];
-        
+        // Grid 14x10 Fijo
+        c_placedWords = [];
+        c_firstSelection = null;
+        c_isDragging = false;
         let success = false;
         let attempts = 0;
+        
         while(!success && attempts < 50) {
-            grid = Array(C_ROWS).fill(null).map(() => Array(C_COLS).fill(''));
-            placedWords = [];
+            c_grid = Array(C_ROWS).fill(null).map(() => Array(C_COLS).fill(''));
+            c_placedWords = [];
             success = true;
             for (let word of levelData.words) {
-                if (!placeWordMobile(word, C_ROWS, C_COLS, grid, placedWords)) {
+                if (!placeWordC(word)) {
                     success = false; break;
                 }
             }
             attempts++;
         }
         
-        fillEmptySpacesMobile(C_ROWS, C_COLS, grid);
+        fillEmptySpacesC();
         
-        // Exponer estado para eventos
-        window.grid = grid;
-        window.placedWords = placedWords;
+        // Renderizado con timeout para asegurar layout
+        setTimeout(renderGridC, 50);
         
-        // Render
-        setTimeout(() => renderGridMobile(C_ROWS, C_COLS, grid), 50);
-        
-        placedWords.forEach((pw, i) => pw.rendered = i < C_MAX_WORDS);
-        renderWordListMobile(placedWords);
+        c_placedWords.forEach((pw, i) => pw.rendered = i < C_MAX_WORDS);
+        renderWordListC();
     }
 
-    function updateTimerMobile() {
+    function updateTimerC() {
         const timerEl = document.getElementById('timer');
-        const val = window.currentGameMode === 'elimination' ? window.levelSeconds : window.totalSeconds;
+        const val = c_currentGameMode === 'elimination' ? c_levelSeconds : c_totalSeconds;
         const mins = Math.floor(val / 60).toString().padStart(2, '0');
         const secs = (val % 60).toString().padStart(2, '0');
         timerEl.textContent = `${mins}:${secs}`;
+        document.getElementById('level-stats').textContent = `Tiempo Total: ${mins}:${secs}`;
     }
 
-    function placeWordMobile(word, rows, cols, gridRef, wordsRef) {
+    function gameOverC() {
+        clearInterval(c_timerInterval);
+        const reviveContainer = document.getElementById('revive-container');
+        if (!c_hasRevived) reviveContainer.style.display = 'flex';
+        else {
+            reviveContainer.style.display = 'none';
+            document.querySelector('#game-over-screen h2').textContent = "Game Over";
+        }
+        document.querySelectorAll('body > div[id$="-screen"]').forEach(div => div.classList.add('hidden'));
+        document.getElementById('game-over-screen').classList.remove('hidden');
+        playTone(150, 'sawtooth', 0.5);
+    }
+
+    function placeWordC(word) {
         let placed = false;
         let att = 0;
         while (!placed && att < 100) {
             const dir = Math.floor(Math.random() * 3);
-            const row = Math.floor(Math.random() * rows);
-            const col = Math.floor(Math.random() * cols);
-            if (canPlaceMobile(word, row, col, dir, rows, cols, gridRef)) {
-                let coords = [];
+            const row = Math.floor(Math.random() * C_ROWS);
+            const col = Math.floor(Math.random() * C_COLS);
+            
+            // Check boundaries
+            let fits = true;
+            if (dir === 0 && col + word.length > C_COLS) fits = false;
+            if (dir === 1 && row + word.length > C_ROWS) fits = false;
+            if (dir === 2 && (row + word.length > C_ROWS || col + word.length > C_COLS)) fits = false;
+
+            if (fits) {
+                // Check collision
+                let collision = false;
                 for (let i = 0; i < word.length; i++) {
-                    let r, c;
-                    if (dir === 0) { r = row; c = col + i; }
-                    else if (dir === 1) { r = row + i; c = col; }
-                    else if (dir === 2) { r = row + i; c = col + i; }
-                    gridRef[r][c] = word[i];
-                    coords.push({r,c});
+                    let r = row, c = col;
+                    if (dir === 0) c += i;
+                    else if (dir === 1) r += i;
+                    else if (dir === 2) { r += i; c += i; }
+                    if (c_grid[r][c] !== '' && c_grid[r][c] !== word[i]) { collision = true; break; }
                 }
-                wordsRef.push({ word: word, found: false, coords: coords, rendered: false });
-                placed = true;
+
+                if (!collision) {
+                    let coords = [];
+                    for (let i = 0; i < word.length; i++) {
+                        let r = row, c = col;
+                        if (dir === 0) c += i;
+                        else if (dir === 1) r += i;
+                        else if (dir === 2) { r += i; c += i; }
+                        c_grid[r][c] = word[i];
+                        coords.push({r,c});
+                    }
+                    c_placedWords.push({ word: word, found: false, coords: coords, rendered: false });
+                    placed = true;
+                }
             }
             att++;
         }
         return placed;
     }
 
-    function canPlaceMobile(word, row, col, dir, rows, cols, gridRef) {
-        if (dir === 0 && col + word.length > cols) return false;
-        if (dir === 1 && row + word.length > rows) return false;
-        if (dir === 2 && (row + word.length > rows || col + word.length > cols)) return false;
-        for (let i = 0; i < word.length; i++) {
-            let existing = gridRef[dir === 0 ? row : (dir === 1 ? row + i : row + i)][dir === 0 ? col + i : (dir === 1 ? col : col + i)];
-            if (existing !== '' && existing !== word[i]) return false;
-        }
-        return true;
-    }
-
-    function fillEmptySpacesMobile(rows, cols, gridRef) {
+    function fillEmptySpacesC() {
         const letters = "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ";
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                if (gridRef[r][c] === '') gridRef[r][c] = letters.charAt(Math.floor(Math.random() * letters.length));
+        for (let r = 0; r < C_ROWS; r++) {
+            for (let c = 0; c < C_COLS; c++) {
+                if (c_grid[r][c] === '') c_grid[r][c] = letters.charAt(Math.floor(Math.random() * letters.length));
             }
         }
     }
 
-    function renderGridMobile(rows, cols, gridRef) {
+    function renderGridC() {
         const gridEl = document.getElementById('grid');
         gridEl.innerHTML = '';
         const wrapper = document.getElementById('grid-wrapper');
         const rect = wrapper.getBoundingClientRect();
         
-        // Forzar recálculo de tamaño si es 0
+        // Cálculo "FIT" para llenar todo el espacio
+        const gap = 1;
         let wAvailable = rect.width || window.innerWidth;
         let hAvailable = rect.height || (window.innerHeight - 200);
-
-        const gap = 1;
         
-        // Calcular tamaño celda (prioridad llenar ancho y alto)
-        const w = (wAvailable - (cols - 1) * gap) / cols;
-        const h = (hAvailable - (rows - 1) * gap) / rows;
+        const w = (wAvailable - (C_COLS - 1) * gap) / C_COLS;
+        const h = (hAvailable - (C_ROWS - 1) * gap) / C_ROWS;
         const cellSize = Math.floor(Math.min(w, h));
         
-        gridEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
-        gridEl.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
+        gridEl.style.display = 'grid';
+        gridEl.style.gridTemplateColumns = `repeat(${C_COLS}, ${cellSize}px)`;
+        gridEl.style.gridTemplateRows = `repeat(${C_ROWS}, ${cellSize}px)`;
         gridEl.style.gap = `${gap}px`;
+        
+        window.removeEventListener('touchend', handleTouchEndC);
+        window.addEventListener('touchend', handleTouchEndC);
 
-        // Eventos Touch
-        window.removeEventListener('touchend', handleGlobalTouchEndMobile);
-        window.addEventListener('touchend', handleGlobalTouchEndMobile);
-
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < C_ROWS; r++) {
+            for (let c = 0; c < C_COLS; c++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell';
-                cell.textContent = gridRef[r][c];
+                cell.textContent = c_grid[r][c];
                 cell.dataset.r = r;
                 cell.dataset.c = c;
-                
                 cell.style.width = `${cellSize}px`;
                 cell.style.height = `${cellSize}px`;
                 cell.style.fontSize = `${cellSize * 0.65}px`;
                 
-                cell.addEventListener('touchstart', (e) => handleTouchStartMobile(r, c, cell, e));
-                cell.addEventListener('touchmove', (e) => handleTouchMoveMobile(e));
+                cell.addEventListener('touchstart', (e) => handleTouchStartC(r, c, cell, e));
+                cell.addEventListener('touchmove', (e) => handleTouchMoveC(e));
                 gridEl.appendChild(cell);
             }
         }
     }
 
-    function renderWordListMobile(wordsRef) {
+    function renderWordListC() {
         const listEl = document.getElementById('word-list');
         listEl.innerHTML = '';
-        wordsRef.forEach(obj => {
+        c_placedWords.forEach(obj => {
             if (obj.rendered) {
                 const li = document.createElement('li');
                 li.textContent = obj.word;
                 li.id = 'word-' + obj.word;
+                if (obj.found) li.classList.add('found-word');
                 listEl.appendChild(li);
             }
         });
     }
 
-    // Lógica Touch
-    let c_firstSelection = null;
-    let c_isDragging = false;
-
-    function handleTouchStartMobile(r, c, cellEl, e) {
+    // --- TOUCH EVENTS ---
+    function handleTouchStartC(r, c, cellEl, e) {
         if(e.cancelable) e.preventDefault();
-        if (window.playTone) window.playTone(300, 'sine', 0.05);
+        playTone(300, 'sine', 0.05);
         if (!c_firstSelection) {
             c_firstSelection = { r, c, el: cellEl };
             cellEl.classList.add('selected');
             c_isDragging = true;
         } else {
-            if (c_firstSelection.r === r && c_firstSelection.c === c) { c_isDragging = true; } 
-            else { checkWordMobile(c_firstSelection, { r, c }); clearVisualsMobile(); c_firstSelection = null; c_isDragging = false; }
+            if (c_firstSelection.r === r && c_firstSelection.c === c) c_isDragging = true;
+            else {
+                checkWordC(c_firstSelection, { r, c });
+                clearVisualsC();
+                c_firstSelection = null;
+                c_isDragging = false;
+            }
         }
     }
 
-    function handleTouchMoveMobile(e) {
+    function handleTouchMoveC(e) {
         if (!c_isDragging || !c_firstSelection) return;
         e.preventDefault();
         const touch = e.touches[0];
@@ -291,23 +348,21 @@ if (window.matchMedia("(max-width: 767px)").matches) {
         if (target && target.classList.contains('cell')) {
             const r = parseInt(target.dataset.r);
             const c = parseInt(target.dataset.c);
-            updateDragMobile(c_firstSelection, {r, c});
+            updateDragC(c_firstSelection, {r, c});
         }
     }
 
-    function handleGlobalTouchEndMobile(e) {
-        if (c_isDragging) {
+    function handleTouchEndC(e) {
+        if (c_isDragging && c_firstSelection && c_firstSelection.lastEnd) {
+            checkWordC(c_firstSelection, c_firstSelection.lastEnd);
+            clearVisualsC();
+            c_firstSelection = null;
             c_isDragging = false;
-            if (c_firstSelection && c_firstSelection.lastEnd) {
-                checkWordMobile(c_firstSelection, c_firstSelection.lastEnd);
-                clearVisualsMobile();
-                c_firstSelection = null;
-            }
         }
     }
 
-    function updateDragMobile(start, end) {
-        clearVisualsMobile();
+    function updateDragC(start, end) {
+        clearVisualsC();
         const startEl = document.querySelector(`.cell[data-r='${start.r}'][data-c='${start.c}']`);
         if(startEl) startEl.classList.add('selected');
         const dRow = end.r - start.r;
@@ -320,46 +375,53 @@ if (window.matchMedia("(max-width: 767px)").matches) {
             let c = start.c;
             for(let i=0; i<=steps; i++) {
                 const cell = document.querySelector(`.cell[data-r='${r}'][data-c='${c}']`);
-                if (cell) cell.classList.add('selected');
+                if(cell) cell.classList.add('selected');
                 r += stepR; c += stepC;
             }
             start.lastEnd = end;
         }
     }
 
-    function clearVisualsMobile() {
+    function clearVisualsC() {
         document.querySelectorAll('.cell.selected').forEach(el => el.classList.remove('selected'));
     }
 
-    function checkWordMobile(start, end) {
+    function checkWordC(start, end) {
         const dRow = end.r - start.r;
         const dCol = end.c - start.c;
         if (dRow !== 0 && dCol !== 0 && Math.abs(dRow) !== Math.abs(dCol)) return;
+
         const steps = Math.max(Math.abs(dRow), Math.abs(dCol));
         const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow);
         const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol);
         let formedWord = "";
-        let currR = start.r;
-        let currC = start.c;
+        let r = start.r, c = start.c;
         let coords = [];
-        const gridRef = window.grid; 
+
         for (let i = 0; i <= steps; i++) {
-            formedWord += gridRef[currR][currC];
-            coords.push({r: currR, c: currC});
-            currR += stepR;
-            currC += stepC;
+            formedWord += c_grid[r][c];
+            coords.push({r, c});
+            r += stepR; c += stepC;
         }
+
         const reversedWord = formedWord.split('').reverse().join('');
-        const foundObj = window.placedWords.find(pw => (pw.word === formedWord || pw.word === reversedWord) && !pw.found);
+        const foundObj = c_placedWords.find(pw => (pw.word === formedWord || pw.word === reversedWord) && !pw.found);
+
         if (foundObj) {
             foundObj.found = true;
-            markWordFoundMobile(foundObj.coords, foundObj.word);
-            if (window.currentGameMode === 'elimination') { window.levelSeconds += 5; updateTimerMobile(); }
-            if (window.placedWords.every(pw => pw.found)) setTimeout(levelCompleteMobile, 800);
+            markWordFoundC(foundObj.coords, foundObj.word);
+            document.getElementById('status-msg').textContent = `¡${foundObj.word} encontrada!`;
+            playTone(440, 'sine', 0.1);
+            if (c_currentGameMode === 'elimination') {
+                c_levelSeconds += 5; updateTimerC();
+            }
+            if (c_placedWords.every(pw => pw.found)) {
+                setTimeout(levelCompleteC, 800);
+            }
         }
     }
 
-    function markWordFoundMobile(coords, wordText) {
+    function markWordFoundC(coords, wordText) {
         coords.forEach((coord, index) => {
             const cell = document.querySelector(`.cell[data-r='${coord.r}'][data-c='${coord.c}']`);
             if(cell) setTimeout(() => cell.classList.add('found'), index * 40);
@@ -367,7 +429,7 @@ if (window.matchMedia("(max-width: 767px)").matches) {
         const li = document.getElementById('word-' + wordText);
         if (li) {
             li.remove();
-            const nextWord = window.placedWords.find(pw => !pw.rendered && !pw.found);
+            const nextWord = c_placedWords.find(pw => !pw.rendered && !pw.found);
             if (nextWord) {
                 nextWord.rendered = true;
                 const ul = document.getElementById('word-list');
@@ -379,12 +441,13 @@ if (window.matchMedia("(max-width: 767px)").matches) {
         }
     }
 
-    function levelCompleteMobile() {
-        clearInterval(window.timerInterval);
+    function levelCompleteC() {
+        clearInterval(c_timerInterval);
         const titleEl = document.getElementById('level-complete-title');
         const btnNext = document.getElementById('btn-next');
         const finalForm = document.getElementById('final-form');
-        if(window.currentLevelIndex === 9) {
+        
+        if(c_currentLevelIndex === mobileLevels.length - 1) {
             titleEl.textContent = "¡INCREIBLE! Has completado el juego.";
             btnNext.classList.add('hidden');
             finalForm.classList.remove('hidden');
@@ -393,6 +456,7 @@ if (window.matchMedia("(max-width: 767px)").matches) {
             btnNext.classList.remove('hidden');
             finalForm.classList.add('hidden');
         }
-        showScreen('level-complete-screen');
+        document.querySelectorAll('body > div[id$="-screen"]').forEach(div => div.classList.add('hidden'));
+        document.getElementById('level-complete-screen').classList.remove('hidden');
     }
 }
