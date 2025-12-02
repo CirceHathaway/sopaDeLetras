@@ -546,102 +546,11 @@ h2 {
 @keyframes shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 
-
-
-/* === SOLO PARA CELULAR === */
-@media (max-width: 768px) {
-
-    /* --- BOTONES SUPERIORES --- */
-    .menu-btn {
-        top: 10px !important;
-        left: 10px !important;
-    }
-
-    .debug-btn {
-        top: 10px !important;
-        right: 10px !important;
-    }
-
-    /* --- INFO BAR (Nivel + Tiempo) --- */
-    .info-bar {
-        margin-top: 60px; /* baja la barra para que NO se mezcle con el menú */
-        display: flex;
-        justify-content: space-between;
-        width: 100%;
-        padding: 0 20px;
-    }
-
-    .info-pill {
-        font-size: 1rem;
-        padding: 6px 14px;
-    }
-
-    /* --- LAYOUT PRINCIPAL --- */
-    .game-layout {
-        display: flex;
-        flex-direction: column;
-        height: calc(100vh - 165px); 
-        /* 165px = menú + info bar + mensaje estado */
-        width: 100%;
-        overflow: hidden;
-    }
-
-    /* --- MENSAJE "Selecciona inicio y fin" --- */
-    #status-msg {
-        margin-top: 15px;
-        font-size: 1rem;
-    }
-
-    /* --- GRID --- */
-    .grid-wrapper {
-        flex: 1;  
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        padding: 10px;
-        overflow: hidden;
-    }
-
-    #grid {
-        width: 100%;
-        height: 100%;
-        display: grid;
-        aspect-ratio: 1 / 1; 
-        max-width: 100%;
-        max-height: 100%;
-        touch-action: none;
-    }
-
-    /* --- PANEL DE PALABRAS FIJO ABAJO --- */
-    .words-panel {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        background: rgba(0,0,0,0.85);
-        padding: 10px 0 15px;
-        border-top: 2px solid #fff;
-        text-align: center;
-        z-index: 999;
-        height: 120px;
-        overflow-y: auto;
-    }
-
-    .words-panel h3 {
-        font-size: 1.1rem;
-        margin-bottom: 5px;
-    }
-
-    #word-list {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 8px;
-        padding: 0 10px;
-    }
-
-    #word-list li {
-        font-size: 0.9rem;
-        padding: 4px 8px;
-    }
+@media (max-width: 480px) {
+    .title-tile { width: 35px; height: 35px; font-size: 18px; box-shadow: 0 4px 0 rgba(0,0,0,0.15); }
+    .title-row { gap: 5px; }
+    .info-bar { margin-top: 50px; }
+    .grid-wrapper { padding: 10px; border-radius: 16px; margin: 0 5px 10px 5px; }
+    #game-screen { padding-bottom: 0; }
+    .menu-buttons { flex-direction: column; } 
 }
