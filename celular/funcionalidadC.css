@@ -7,10 +7,7 @@
         gap: 10px;
     }
 
-    /* Contenedor auxiliar para agrupar botón y pills si no existiera, 
-       pero como usamos la estructura original, aplicamos estilos directos */
-    
-    /* Forzar alineación de elementos */
+    /* Forzar orden y alineación */
     .menu-btn-compact {
         margin: 0;
         font-size: 0.8rem;
@@ -18,18 +15,18 @@
         order: 1;
     }
 
-    /* Nivel y Tiempo pegados al botón */
-    .info-pill {
-        padding: 4px 8px;
-        font-size: 0.8rem;
-        min-width: auto;
-    }
     /* Pill Nivel */
     #level-indicator { order: 2; }
     /* Pill Tiempo */
     #timer { order: 3; }
     
-    /* Botón Debug (Rayo) a la derecha absoluta */
+    .info-pill {
+        padding: 4px 8px;
+        font-size: 0.8rem;
+        min-width: auto;
+    }
+    
+    /* Botón Debug a la derecha absoluta */
     .debug-btn {
         position: absolute;
         right: 10px;
@@ -50,7 +47,7 @@
         border-radius: 0; 
         padding: 2px; /* Fichas casi tocando el borde */
         
-        /* Ocupar todo el alto */
+        /* Ocupar todo el alto disponible */
         flex-grow: 1; 
         max-height: none; 
         

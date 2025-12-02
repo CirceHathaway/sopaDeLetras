@@ -1,5 +1,5 @@
 @media (min-width: 600px) and (max-width: 1024px) {
-    /* Header a la izquierda */
+    /* --- HEADER --- */
     .header-compact {
         padding: 10px 20px;
         justify-content: flex-start;
@@ -10,19 +10,27 @@
         display: flex;
         align-items: center;
         gap: 15px;
+        flex-grow: 1;
     }
     
     .menu-btn-compact { order: 1; margin-right: 10px; }
     .info-group { order: 2; display: flex; gap: 10px; }
 
-    .debug-btn {
-        position: absolute;
-        right: 20px;
-        top: 15px;
+    .info-pill {
+        font-size: 1rem;
+        padding: 6px 15px;
     }
 
-    /* Tablero Maximizado */
-    .game-layout { padding: 0; gap: 0; }
+    .debug-btn {
+        position: relative; /* En flujo normal a la derecha */
+        margin-left: auto; 
+    }
+
+    /* --- TABLERO MAXIMIZADO --- */
+    .game-layout {
+        padding: 0;
+        gap: 0;
+    }
     
     .grid-wrapper {
         width: 98%;
@@ -34,15 +42,21 @@
         max-height: none;
     }
 
-    #grid { gap: 2px; }
+    #grid {
+        gap: 2px;
+    }
 
-    /* Panel (4 palabras visible - override a desktop) */
+    /* --- PANEL --- */
     .words-panel {
-        height: 130px; /* Altura media */
-        max-height: 130px;
-        padding: 10px;
+        height: 120px; /* Altura media */
+        max-height: 120px;
+        padding: 8px;
         flex-shrink: 0;
     }
     
-    #word-list { gap: 6px; }
+    #word-list {
+        gap: 6px;
+    }
+    
+    .title-tile { width: 40px; height: 40px; font-size: 22px; }
 }

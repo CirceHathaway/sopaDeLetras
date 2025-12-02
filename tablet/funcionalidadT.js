@@ -1,32 +1,10 @@
-if (window.innerWidth >= 600 && window.innerWidth <= 1024) {
+// Detectar si es Tablet
+if (window.matchMedia("(min-width: 768px) and (max-width: 1024px)").matches) {
     
     const T_ROWS = 16;
     const T_COLS = 15;
-    // ELIMINADO LIMITE VISUAL: Se muestran todas o el máximo que quepa (7 visualmente por CSS height)
-    // Pero mantengo la lógica de reemplazo por si acaso hay muchas palabras.
-    const T_MAX_WORDS = 7; 
+    const T_MAX_WORDS = 7; // Tablet
 
-    let t_grid = [];
-    let t_placedWords = [];
-    let t_firstSelection = null;
-    let t_isDragging = false;
-
-    const audioCtxTablet = new (window.AudioContext || window.webkitAudioContext)();
-    function playToneTablet(freq, type, duration) {
-        if (audioCtxTablet.state === 'suspended') audioCtxTablet.resume();
-        const osc = audioCtxTablet.createOscillator();
-        const gain = audioCtxTablet.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, audioCtxTablet.currentTime);
-        gain.gain.setValueAtTime(0.05, audioCtxTablet.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.00001, audioCtxTablet.currentTime + duration);
-        osc.connect(gain);
-        gain.connect(audioCtxTablet.destination);
-        osc.start();
-        osc.stop(audioCtxTablet.currentTime + duration);
-    }
-
-    // Copia niveles tablet
     const tabletLevels = [
         { level: 1, words: ["SOL", "LUNA", "MAR", "GATO", "PERRO"] },
         { level: 2, words: ["MESA", "SILLA", "LAPIZ", "LIBRO", "PAPEL", "CASA"] },
@@ -42,42 +20,42 @@ if (window.innerWidth >= 600 && window.innerWidth <= 1024) {
 
     window.initLevel = function() {
         console.log("Iniciando modo TABLETA (16x15)");
-        
         let lvlTxt = document.getElementById('level-indicator').textContent;
         let lvl = parseInt(lvlTxt.split('/')[0].replace('Nivel ', '')) || 1;
         let idx = lvl - 1;
         const levelData = tabletLevels[idx];
-        
+
         if(window.stopTimer) window.stopTimer();
-        
-        t_grid = Array(T_ROWS).fill(null).map(() => Array(T_COLS).fill(''));
-        t_placedWords = [];
+
+        // GRID FIJO 16x15
+        let grid = Array(T_ROWS).fill(null).map(() => Array(T_COLS).fill(''));
+        let placedWords = [];
         
         let success = false;
         let attempts = 0;
         while(!success && attempts < 50) {
-            t_grid = Array(T_ROWS).fill(null).map(() => Array(T_COLS).fill(''));
-            t_placedWords = [];
+            grid = Array(T_ROWS).fill(null).map(() => Array(T_COLS).fill(''));
+            placedWords = [];
             success = true;
             for (let word of levelData.words) {
-                if (!placeWordTablet(word, T_ROWS, T_COLS, t_grid, t_placedWords)) {
+                if (!placeWordTablet(word, T_ROWS, T_COLS, grid, placedWords)) {
                     success = false; break;
                 }
             }
             attempts++;
         }
         
-        fillEmptySpacesTablet(T_ROWS, T_COLS, t_grid);
+        fillEmptySpacesTablet(T_ROWS, T_COLS, grid);
         
         setTimeout(() => {
-            renderGridTablet(T_ROWS, T_COLS, t_grid);
+            renderGridTablet(T_ROWS, T_COLS, grid);
         }, 50);
         
-        t_placedWords.forEach((pw, i) => pw.rendered = i < T_MAX_WORDS);
-        renderWordListTablet(t_placedWords);
+        placedWords.forEach((pw, i) => pw.rendered = i < T_MAX_WORDS);
+        renderWordListTablet(placedWords);
         
-        window.grid = t_grid;
-        window.placedWords = t_placedWords;
+        window.grid = grid;
+        window.placedWords = placedWords;
         window.currentRows = T_ROWS;
         window.currentCols = T_COLS;
 
@@ -129,7 +107,10 @@ if (window.innerWidth >= 600 && window.innerWidth <= 1024) {
         if (dir === 1 && row + word.length > rows) return false;
         if (dir === 2 && (row + word.length > rows || col + word.length > cols)) return false;
         for (let i = 0; i < word.length; i++) {
-            let existing = gridRef[dir === 0 ? row : (dir === 1 ? row + i : row + i)][dir === 0 ? col + i : (dir === 1 ? col : col + i)];
+            let existing;
+            if (dir === 0) existing = gridRef[row][col + i];
+            else if (dir === 1) existing = gridRef[row + i][col];
+            else if (dir === 2) existing = gridRef[row + i][col + i];
             if (existing !== '' && existing !== word[i]) return false;
         }
         return true;
@@ -149,6 +130,7 @@ if (window.innerWidth >= 600 && window.innerWidth <= 1024) {
         gridEl.innerHTML = '';
         const wrapper = document.getElementById('grid-wrapper');
         const rect = wrapper.getBoundingClientRect();
+        
         const gap = 2;
         const w = (rect.width - (cols - 1) * gap) / cols;
         const h = (rect.height - (rows - 1) * gap) / rows;
@@ -158,8 +140,9 @@ if (window.innerWidth >= 600 && window.innerWidth <= 1024) {
         gridEl.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
         gridEl.style.gap = `${gap}px`;
 
-        window.removeEventListener('touchend', checkDragEndTablet);
-        window.addEventListener('touchend', checkDragEndTablet);
+        // Replicamos lógica táctil para tableta
+        window.removeEventListener('touchend', handleGlobalTouchEndTablet);
+        window.addEventListener('touchend', handleGlobalTouchEndTablet);
 
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
@@ -168,13 +151,13 @@ if (window.innerWidth >= 600 && window.innerWidth <= 1024) {
                 cell.textContent = gridRef[r][c];
                 cell.dataset.r = r;
                 cell.dataset.c = c;
+                
                 cell.style.width = `${cellSize}px`;
                 cell.style.height = `${cellSize}px`;
                 cell.style.fontSize = `${cellSize * 0.65}px`;
                 
                 cell.addEventListener('touchstart', (e) => handleTouchStartTablet(r, c, cell, e));
                 cell.addEventListener('touchmove', (e) => handleTouchMoveTablet(e));
-                
                 gridEl.appendChild(cell);
             }
         }
@@ -193,24 +176,20 @@ if (window.innerWidth >= 600 && window.innerWidth <= 1024) {
         });
     }
 
-    // --- INTERACCIÓN TABLET ---
+    // Lógica Táctil Tableta (Copia de celular adaptada)
+    let t_firstSelection = null;
+    let t_isDragging = false;
+
     function handleTouchStartTablet(r, c, cellEl, e) {
         if(e.cancelable) e.preventDefault();
-        playToneTablet(300, 'sine', 0.05);
-        
+        if (window.playTone) window.playTone(300, 'sine', 0.05);
         if (!t_firstSelection) {
             t_firstSelection = { r, c, el: cellEl };
             cellEl.classList.add('selected');
             t_isDragging = true;
         } else {
-            if (t_firstSelection.r === r && t_firstSelection.c === c) {
-                t_isDragging = true;
-            } else {
-                checkWordTablet(t_firstSelection, { r, c });
-                clearVisualsTablet();
-                t_firstSelection = null;
-                t_isDragging = false;
-            }
+            if (t_firstSelection.r === r && t_firstSelection.c === c) { t_isDragging = true; } 
+            else { checkWordTablet(t_firstSelection, { r, c }); clearVisualsTablet(); t_firstSelection = null; t_isDragging = false; }
         }
     }
 
@@ -226,26 +205,24 @@ if (window.innerWidth >= 600 && window.innerWidth <= 1024) {
         }
     }
 
-    function checkDragEndTablet() {
-        if (t_isDragging && t_firstSelection && t_firstSelection.lastEnd) {
-            checkWordTablet(t_firstSelection, t_firstSelection.lastEnd);
-            clearVisualsTablet();
-            t_firstSelection = null;
+    function handleGlobalTouchEndTablet(e) {
+        if (t_isDragging) {
             t_isDragging = false;
+            if (t_firstSelection && t_firstSelection.lastEnd) {
+                checkWordTablet(t_firstSelection, t_firstSelection.lastEnd);
+                clearVisualsTablet();
+                t_firstSelection = null;
+            }
         }
     }
 
-    function clearVisualsTablet() {
-        document.querySelectorAll('.cell.selected').forEach(el => el.classList.remove('selected'));
-    }
-
     function updateDragTablet(start, end) {
-        clearVisualsTablet(); 
-        document.querySelector(`.cell[data-r='${start.r}'][data-c='${start.c}']`).classList.add('selected'); // Start siempre selected
+        clearVisualsTablet();
+        const startEl = document.querySelector(`.cell[data-r='${start.r}'][data-c='${start.c}']`);
+        if(startEl) startEl.classList.add('selected');
 
         const dRow = end.r - start.r;
         const dCol = end.c - start.c;
-        
         if (dRow === 0 || dCol === 0 || Math.abs(dRow) === Math.abs(dCol)) {
             const steps = Math.max(Math.abs(dRow), Math.abs(dCol));
             const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow);
@@ -257,8 +234,12 @@ if (window.innerWidth >= 600 && window.innerWidth <= 1024) {
                 if (cell) cell.classList.add('selected');
                 r += stepR; c += stepC;
             }
-            t_firstSelection.lastEnd = end;
+            start.lastEnd = end;
         }
+    }
+
+    function clearVisualsTablet() {
+        document.querySelectorAll('.cell.selected').forEach(el => el.classList.remove('selected'));
     }
 
     function checkWordTablet(start, end) {
@@ -269,34 +250,34 @@ if (window.innerWidth >= 600 && window.innerWidth <= 1024) {
         const steps = Math.max(Math.abs(dRow), Math.abs(dCol));
         const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow);
         const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol);
-
         let formedWord = "";
         let currR = start.r;
         let currC = start.c;
-        let pathCoords = [];
-
+        let coords = [];
+        const currentGrid = window.grid; 
+        
         for (let i = 0; i <= steps; i++) {
-            formedWord += t_grid[currR][currC];
-            pathCoords.push({r: currR, c: currC});
+            formedWord += currentGrid[currR][currC];
+            coords.push({r: currR, c: currC});
             currR += stepR;
             currC += stepC;
         }
 
         const reversedWord = formedWord.split('').reverse().join('');
-        const foundObj = t_placedWords.find(pw => 
-            (pw.word === formedWord || pw.word === reversedWord) && !pw.found
-        );
+        const currentWords = window.placedWords;
+        const foundObj = currentWords.find(pw => (pw.word === formedWord || pw.word === reversedWord) && !pw.found);
 
         if (foundObj) {
             foundObj.found = true;
             markWordFoundTablet(foundObj.coords, foundObj.word);
             document.getElementById('status-msg').textContent = `¡${foundObj.word} encontrada!`;
-            playToneTablet(440, 'sine', 0.1);
+            if (window.playTone) window.playTone(440, 'sine', 0.1);
+            
             if (window.currentGameMode === 'elimination') {
                 window.levelSeconds += 5; 
                 window.updateTimerDisplay();
             }
-            if (t_placedWords.every(pw => pw.found)) {
+            if (currentWords.every(pw => pw.found)) {
                 setTimeout(window.levelComplete, 800);
             }
         }
@@ -310,7 +291,7 @@ if (window.innerWidth >= 600 && window.innerWidth <= 1024) {
         const li = document.getElementById('word-' + wordText);
         if (li) {
             li.remove();
-            const nextWord = t_placedWords.find(pw => !pw.rendered && !pw.found);
+            const nextWord = window.placedWords.find(pw => !pw.rendered && !pw.found);
             if (nextWord) {
                 nextWord.rendered = true;
                 const ul = document.getElementById('word-list');
