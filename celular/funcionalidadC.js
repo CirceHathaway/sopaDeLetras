@@ -2,12 +2,34 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// Solo ejecutar si estamos en rango de CELULAR
-if (window.matchMedia("(max-width: 700px)").matches) {
+// DETECCIÓN ROBUSTA
+if (window.matchMedia("(max-width: 767px)").matches) {
+    console.log("Modo CELULAR Activo");
 
+    // --- CONFIGURACIÓN ---
     const C_ROWS = 14;
     const C_COLS = 10;
     const C_MAX_WORDS = 4;
+
+    // Config Firebase Local
+    const firebaseConfig = {
+      apiKey: "AIzaSyBXOH-m6L0kS-0qVSAAh837R-lVIlFt2ZQ",
+      authDomain: "sopa-de-letras-1bb46.firebaseapp.com",
+      projectId: "sopa-de-letras-1bb46",
+      storageBucket: "sopa-de-letras-1bb46.firebasestorage.app",
+      messagingSenderId: "931258212814",
+      appId: "1:931258212814:web:456b55dadb16602fb9cb9f"
+    };
+    
+    let db;
+    let auth;
+    let user;
+    try {
+        const app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+        signInAnonymously(auth).then(u => user = u.user).catch(console.error);
+    } catch (e) {}
 
     const mobileLevels = [
         { level: 1, words: ["SOL", "LUNA", "MAR", "GATO", "PERRO"] },
@@ -22,20 +44,93 @@ if (window.matchMedia("(max-width: 700px)").matches) {
         { level: 10, words: ["EFIMERO", "INEFABLE", "RESILIENCIA", "SEMPITERNO", "ELOCUENCIA", "MELANCOLIA", "SERENDIPIA", "ETEREO", "LIMERENCIA", "ARREBOL", "EPOCA", "SONETO", "ASTRAL", "ETERNO"] }
     ];
 
-    // Sobrescribir funciones globales
-    window.initLevel = function() {
-        let lvlTxt = document.getElementById('level-indicator').textContent;
-        let lvl = parseInt(lvlTxt.split('/')[0].replace('Nivel ', '')) || 1;
-        let idx = lvl - 1;
+    // --- IMPORTANTE: SOBRESCRIBIR PUNTOS DE ENTRADA ---
+    // Esto desconecta la lógica del archivo de escritorio
+    
+    window.startMode = function(mode) {
+        // Usamos variables globales para compartir estado simple
+        window.currentGameMode = mode;
+        window.currentLevelIndex = 0; 
+        window.totalSeconds = 0;
+        window.hasRevived = false; 
+        
+        showScreen('game-screen');
+        // Detener animación fondo si existe
+        const bg = document.getElementById('background-animation');
+        if(bg) bg.innerHTML = '';
+        
+        // LLAMAR A INIT LOCAL
+        initLevelMobile();
+    };
+
+    window.nextLevelWithAnimation = function() {
+        const btn = document.getElementById('btn-next');
+        if(btn.classList.contains('filling')) return;
+        btn.classList.add('filling');
+        setTimeout(() => {
+            btn.classList.remove('filling');
+            window.currentLevelIndex++;
+            showScreen('game-screen');
+            initLevelMobile();
+        }, 1500);
+    };
+
+    window.revivePlayer = function() {
+        window.hasRevived = true;
+        window.levelSeconds += 30; 
+        showScreen('game-screen');
+        window.timerInterval = setInterval(() => {
+            window.levelSeconds--;
+            window.totalSeconds++; 
+            updateTimerMobile();
+            if (window.levelSeconds <= 0) window.gameOver();
+        }, 1000);
+    };
+
+    window.solveLevel = function() {
+        window.placedWords.forEach(pw => {
+            if(!pw.found) {
+                pw.found = true;
+                markWordFoundMobile(pw.coords, pw.word);
+            }
+        });
+        setTimeout(levelCompleteMobile, 500);
+    };
+
+    // --- LÓGICA CORE CELULAR ---
+
+    function initLevelMobile() {
+        const idx = window.currentLevelIndex || 0;
         const levelData = mobileLevels[idx];
+        
+        document.getElementById('level-indicator').textContent = `Nivel ${levelData.level}/10`;
+        document.getElementById('status-msg').textContent = "Encuentra las palabras";
+        
+        if(window.timerInterval) clearInterval(window.timerInterval);
+        
+        if (window.currentGameMode === 'elimination') {
+            window.levelSeconds = levelData.words.length * 12; 
+            updateTimerMobile();
+            window.timerInterval = setInterval(() => {
+                window.levelSeconds--;
+                window.totalSeconds++; 
+                updateTimerMobile();
+                if (window.levelSeconds <= 0) window.gameOver();
+            }, 1000);
+        } else {
+            updateTimerMobile();
+            window.timerInterval = setInterval(() => {
+                window.totalSeconds++;
+                updateTimerMobile();
+            }, 1000);
+        }
 
-        if(window.stopTimer) window.stopTimer();
-
+        // Grid Fijo 14x10
         let grid = Array(C_ROWS).fill(null).map(() => Array(C_COLS).fill(''));
         let placedWords = [];
+        
         let success = false;
         let attempts = 0;
-
         while(!success && attempts < 50) {
             grid = Array(C_ROWS).fill(null).map(() => Array(C_COLS).fill(''));
             placedWords = [];
@@ -47,42 +142,27 @@ if (window.matchMedia("(max-width: 700px)").matches) {
             }
             attempts++;
         }
-
+        
         fillEmptySpacesMobile(C_ROWS, C_COLS, grid);
-
-        // Renderizado diferido para asegurar cálculo de dimensiones
-        setTimeout(() => {
-            renderGridMobile(C_ROWS, C_COLS, grid);
-        }, 50);
-        setTimeout(() => {
-            renderGridMobile(C_ROWS, C_COLS, grid);
-        }, 200); // Doble check
-
-        placedWords.forEach((pw, i) => pw.rendered = i < C_MAX_WORDS);
-        renderWordListMobile(placedWords);
-
+        
+        // Exponer estado para eventos
         window.grid = grid;
         window.placedWords = placedWords;
-        window.currentRows = C_ROWS;
-        window.currentCols = C_COLS;
+        
+        // Render
+        setTimeout(() => renderGridMobile(C_ROWS, C_COLS, grid), 50);
+        
+        placedWords.forEach((pw, i) => pw.rendered = i < C_MAX_WORDS);
+        renderWordListMobile(placedWords);
+    }
 
-        if (window.currentGameMode === 'elimination') {
-            window.levelSeconds = levelData.words.length * 12; 
-            window.updateTimerDisplay();
-            window.timerInterval = setInterval(() => {
-                window.levelSeconds--;
-                window.totalSeconds++; 
-                window.updateTimerDisplay();
-                if (window.levelSeconds <= 0) window.gameOver();
-            }, 1000);
-        } else {
-            window.updateTimerDisplay();
-            window.timerInterval = setInterval(() => {
-                window.totalSeconds++;
-                window.updateTimerDisplay();
-            }, 1000);
-        }
-    };
+    function updateTimerMobile() {
+        const timerEl = document.getElementById('timer');
+        const val = window.currentGameMode === 'elimination' ? window.levelSeconds : window.totalSeconds;
+        const mins = Math.floor(val / 60).toString().padStart(2, '0');
+        const secs = (val % 60).toString().padStart(2, '0');
+        timerEl.textContent = `${mins}:${secs}`;
+    }
 
     function placeWordMobile(word, rows, cols, gridRef, wordsRef) {
         let placed = false;
@@ -131,30 +211,26 @@ if (window.matchMedia("(max-width: 700px)").matches) {
 
     function renderGridMobile(rows, cols, gridRef) {
         const gridEl = document.getElementById('grid');
-        const wrapper = document.getElementById('grid-wrapper');
-        
-        if (!gridEl || !wrapper) return;
-        
         gridEl.innerHTML = '';
+        const wrapper = document.getElementById('grid-wrapper');
+        const rect = wrapper.getBoundingClientRect();
         
-        // Medidas reales o fallback a ventana si es 0
-        let rect = wrapper.getBoundingClientRect();
-        let width = rect.width;
-        let height = rect.height;
-
-        if (width === 0) width = window.innerWidth - 4;
-        if (height === 0) height = window.innerHeight - 150; // Estimación
+        // Forzar recálculo de tamaño si es 0
+        let wAvailable = rect.width || window.innerWidth;
+        let hAvailable = rect.height || (window.innerHeight - 200);
 
         const gap = 1;
-        const w = (width - (cols - 1) * gap) / cols;
-        const h = (height - (rows - 1) * gap) / rows;
+        
+        // Calcular tamaño celda (prioridad llenar ancho y alto)
+        const w = (wAvailable - (cols - 1) * gap) / cols;
+        const h = (hAvailable - (rows - 1) * gap) / rows;
         const cellSize = Math.floor(Math.min(w, h));
         
-        gridEl.style.display = 'grid';
         gridEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
         gridEl.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
         gridEl.style.gap = `${gap}px`;
 
+        // Eventos Touch
         window.removeEventListener('touchend', handleGlobalTouchEndMobile);
         window.addEventListener('touchend', handleGlobalTouchEndMobile);
 
@@ -172,7 +248,6 @@ if (window.matchMedia("(max-width: 700px)").matches) {
                 
                 cell.addEventListener('touchstart', (e) => handleTouchStartMobile(r, c, cell, e));
                 cell.addEventListener('touchmove', (e) => handleTouchMoveMobile(e));
-                
                 gridEl.appendChild(cell);
             }
         }
@@ -191,26 +266,20 @@ if (window.matchMedia("(max-width: 700px)").matches) {
         });
     }
 
+    // Lógica Touch
     let c_firstSelection = null;
     let c_isDragging = false;
 
     function handleTouchStartMobile(r, c, cellEl, e) {
         if(e.cancelable) e.preventDefault();
         if (window.playTone) window.playTone(300, 'sine', 0.05);
-        
         if (!c_firstSelection) {
             c_firstSelection = { r, c, el: cellEl };
             cellEl.classList.add('selected');
             c_isDragging = true;
         } else {
-            if (c_firstSelection.r === r && c_firstSelection.c === c) {
-                c_isDragging = true; 
-            } else {
-                checkWordMobile(c_firstSelection, { r, c });
-                clearVisualsMobile();
-                c_firstSelection = null;
-                c_isDragging = false;
-            }
+            if (c_firstSelection.r === r && c_firstSelection.c === c) { c_isDragging = true; } 
+            else { checkWordMobile(c_firstSelection, { r, c }); clearVisualsMobile(); c_firstSelection = null; c_isDragging = false; }
         }
     }
 
@@ -241,7 +310,6 @@ if (window.matchMedia("(max-width: 700px)").matches) {
         clearVisualsMobile();
         const startEl = document.querySelector(`.cell[data-r='${start.r}'][data-c='${start.c}']`);
         if(startEl) startEl.classList.add('selected');
-
         const dRow = end.r - start.r;
         const dCol = end.c - start.c;
         if (dRow === 0 || dCol === 0 || Math.abs(dRow) === Math.abs(dCol)) {
@@ -267,7 +335,6 @@ if (window.matchMedia("(max-width: 700px)").matches) {
         const dRow = end.r - start.r;
         const dCol = end.c - start.c;
         if (dRow !== 0 && dCol !== 0 && Math.abs(dRow) !== Math.abs(dCol)) return;
-
         const steps = Math.max(Math.abs(dRow), Math.abs(dCol));
         const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow);
         const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol);
@@ -275,32 +342,20 @@ if (window.matchMedia("(max-width: 700px)").matches) {
         let currR = start.r;
         let currC = start.c;
         let coords = [];
-
         const gridRef = window.grid; 
-        
         for (let i = 0; i <= steps; i++) {
             formedWord += gridRef[currR][currC];
             coords.push({r: currR, c: currC});
             currR += stepR;
             currC += stepC;
         }
-
         const reversedWord = formedWord.split('').reverse().join('');
         const foundObj = window.placedWords.find(pw => (pw.word === formedWord || pw.word === reversedWord) && !pw.found);
-
         if (foundObj) {
             foundObj.found = true;
             markWordFoundMobile(foundObj.coords, foundObj.word);
-            document.getElementById('status-msg').textContent = `¡${foundObj.word} encontrada!`;
-            if(window.playTone) window.playTone(440, 'sine', 0.1);
-            
-            if (window.currentGameMode === 'elimination') {
-                window.levelSeconds += 5; 
-                window.updateTimerDisplay();
-            }
-            if (window.placedWords.every(pw => pw.found)) {
-                setTimeout(window.levelComplete, 800);
-            }
+            if (window.currentGameMode === 'elimination') { window.levelSeconds += 5; updateTimerMobile(); }
+            if (window.placedWords.every(pw => pw.found)) setTimeout(levelCompleteMobile, 800);
         }
     }
 
@@ -322,5 +377,22 @@ if (window.matchMedia("(max-width: 700px)").matches) {
                 ul.appendChild(newLi);
             }
         }
+    }
+
+    function levelCompleteMobile() {
+        clearInterval(window.timerInterval);
+        const titleEl = document.getElementById('level-complete-title');
+        const btnNext = document.getElementById('btn-next');
+        const finalForm = document.getElementById('final-form');
+        if(window.currentLevelIndex === 9) {
+            titleEl.textContent = "¡INCREIBLE! Has completado el juego.";
+            btnNext.classList.add('hidden');
+            finalForm.classList.remove('hidden');
+        } else {
+            titleEl.textContent = "¡Nivel Completado!";
+            btnNext.classList.remove('hidden');
+            finalForm.classList.add('hidden');
+        }
+        showScreen('level-complete-screen');
     }
 }

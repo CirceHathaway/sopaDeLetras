@@ -1,8 +1,11 @@
-if (window.innerWidth >= 700 && window.innerWidth <= 1024) {
-    
-    const T_ROWS = 16; 
-    const T_COLS = 15; 
-    const T_MAX_WORDS = 7; 
+// Solo ejecutar si estamos en rango de TABLETA
+if (window.matchMedia("(min-width: 768px) and (max-width: 1024px)").matches) {
+
+    console.log("Modo TABLETA Activo (Grid 16x15)");
+
+    const T_ROWS = 16;
+    const T_COLS = 15;
+    const T_MAX_WORDS = 7;
 
     const tabletLevels = [
         { level: 1, words: ["SOL", "LUNA", "MAR", "GATO", "PERRO"] },
@@ -17,14 +20,51 @@ if (window.innerWidth >= 700 && window.innerWidth <= 1024) {
         { level: 10, words: ["EFIMERO", "INEFABLE", "RESILIENCIA", "SEMPITERNO", "ELOCUENCIA", "MELANCOLIA", "SERENDIPIA", "ETEREO", "LIMERENCIA", "ARREBOL", "EPOCA", "SONETO", "ASTRAL", "ETERNO"] }
     ];
 
-    window.initLevel = function() {
-        let lvlTxt = document.getElementById('level-indicator').textContent;
-        let lvl = parseInt(lvlTxt.split('/')[0].replace('Nivel ', '')) || 1;
-        let idx = lvl - 1;
+    // SOBRESCRIBIR FUNCIONES GLOBALES PARA TABLET
+    window.startMode = function(mode) {
+        window.currentGameMode = mode;
+        window.currentLevelIndex = 0; 
+        window.totalSeconds = 0;
+        window.hasRevived = false; 
+        showScreen('game-screen');
+        const bg = document.getElementById('background-animation');
+        if(bg) bg.innerHTML = '';
+        initLevelTablet();
+    };
+
+    window.nextLevelWithAnimation = function() {
+        const btn = document.getElementById('btn-next');
+        if(btn.classList.contains('filling')) return;
+        btn.classList.add('filling');
+        setTimeout(() => {
+            btn.classList.remove('filling');
+            window.currentLevelIndex++;
+            showScreen('game-screen');
+            initLevelTablet();
+        }, 1500);
+    };
+
+    // Funciones auxiliares deben ser expuestas también o llamadas directamente
+    window.solveLevel = function() {
+        window.placedWords.forEach(pw => {
+            if(!pw.found) {
+                pw.found = true;
+                markWordFoundTablet(pw.coords, pw.word);
+            }
+        });
+        setTimeout(levelCompleteTablet, 500);
+    };
+
+    function initLevelTablet() {
+        const idx = window.currentLevelIndex || 0;
         const levelData = tabletLevels[idx];
+        
+        document.getElementById('level-indicator').textContent = `Nivel ${levelData.level}/10`;
+        document.getElementById('status-msg').textContent = "Encuentra las palabras";
 
-        if(window.stopTimer) window.stopTimer();
-
+        if(window.timerInterval) clearInterval(window.timerInterval);
+        
+        // Grid Fijo 16x15
         let grid = Array(T_ROWS).fill(null).map(() => Array(T_COLS).fill(''));
         let placedWords = [];
         let success = false;
@@ -45,7 +85,6 @@ if (window.innerWidth >= 700 && window.innerWidth <= 1024) {
         fillEmptySpacesTablet(T_ROWS, T_COLS, grid);
         
         setTimeout(() => renderGridTablet(T_ROWS, T_COLS, grid), 50);
-        setTimeout(() => renderGridTablet(T_ROWS, T_COLS, grid), 200);
         
         placedWords.forEach((pw, i) => pw.rendered = i < T_MAX_WORDS);
         renderWordListTablet(placedWords);
@@ -55,23 +94,32 @@ if (window.innerWidth >= 700 && window.innerWidth <= 1024) {
         window.currentRows = T_ROWS;
         window.currentCols = T_COLS;
 
+        // Timer
         if (window.currentGameMode === 'elimination') {
             window.levelSeconds = levelData.words.length * 12; 
-            window.updateTimerDisplay();
+            updateTimerTablet();
             window.timerInterval = setInterval(() => {
                 window.levelSeconds--;
                 window.totalSeconds++; 
-                window.updateTimerDisplay();
+                updateTimerTablet();
                 if (window.levelSeconds <= 0) window.gameOver();
             }, 1000);
         } else {
-            window.updateTimerDisplay();
+            updateTimerTablet();
             window.timerInterval = setInterval(() => {
                 window.totalSeconds++;
-                window.updateTimerDisplay();
+                updateTimerTablet();
             }, 1000);
         }
-    };
+    }
+
+    function updateTimerTablet() {
+        const timerEl = document.getElementById('timer');
+        const val = window.currentGameMode === 'elimination' ? window.levelSeconds : window.totalSeconds;
+        const mins = Math.floor(val / 60).toString().padStart(2, '0');
+        const secs = (val % 60).toString().padStart(2, '0');
+        timerEl.textContent = `${mins}:${secs}`;
+    }
 
     function placeWordTablet(word, rows, cols, gridRef, wordsRef) {
         let placed = false;
@@ -120,27 +168,23 @@ if (window.innerWidth >= 700 && window.innerWidth <= 1024) {
 
     function renderGridTablet(rows, cols, gridRef) {
         const gridEl = document.getElementById('grid');
-        const wrapper = document.getElementById('grid-wrapper');
-        if (!gridEl || !wrapper) return;
-        
         gridEl.innerHTML = '';
-        let rect = wrapper.getBoundingClientRect();
-        let width = rect.width;
-        let height = rect.height;
+        const wrapper = document.getElementById('grid-wrapper');
+        const rect = wrapper.getBoundingClientRect();
         
-        if (width === 0) width = window.innerWidth - 10;
-        if (height === 0) height = window.innerHeight - 200;
-
+        let wAvailable = rect.width || window.innerWidth;
+        let hAvailable = rect.height || (window.innerHeight - 250);
+        
         const gap = 2;
-        const w = (width - (cols - 1) * gap) / cols;
-        const h = (height - (rows - 1) * gap) / rows;
+        const w = (wAvailable - (cols - 1) * gap) / cols;
+        const h = (hAvailable - (rows - 1) * gap) / rows;
         const cellSize = Math.floor(Math.min(w, h));
         
         gridEl.style.display = 'grid';
         gridEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
         gridEl.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
         gridEl.style.gap = `${gap}px`;
-        
+
         window.removeEventListener('touchend', handleGlobalTouchEndTablet);
         window.addEventListener('touchend', handleGlobalTouchEndTablet);
 
@@ -176,6 +220,7 @@ if (window.innerWidth >= 700 && window.innerWidth <= 1024) {
         });
     }
 
+    // Interacción Tablet
     let t_firstSelection = null;
     let t_isDragging = false;
 
@@ -219,7 +264,6 @@ if (window.innerWidth >= 700 && window.innerWidth <= 1024) {
         clearVisualsTablet();
         const startEl = document.querySelector(`.cell[data-r='${start.r}'][data-c='${start.c}']`);
         if(startEl) startEl.classList.add('selected');
-
         const dRow = end.r - start.r;
         const dCol = end.c - start.c;
         if (dRow === 0 || dCol === 0 || Math.abs(dRow) === Math.abs(dCol)) {
@@ -245,7 +289,6 @@ if (window.innerWidth >= 700 && window.innerWidth <= 1024) {
         const dRow = end.r - start.r;
         const dCol = end.c - start.c;
         if (dRow !== 0 && dCol !== 0 && Math.abs(dRow) !== Math.abs(dCol)) return;
-
         const steps = Math.max(Math.abs(dRow), Math.abs(dCol));
         const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow);
         const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol);
@@ -253,31 +296,20 @@ if (window.innerWidth >= 700 && window.innerWidth <= 1024) {
         let currR = start.r;
         let currC = start.c;
         let coords = [];
-        
-        const currentGrid = window.grid; 
-
+        const gridRef = window.grid; 
         for (let i = 0; i <= steps; i++) {
-            formedWord += currentGrid[currR][currC];
+            formedWord += gridRef[currR][currC];
             coords.push({r: currR, c: currC});
             currR += stepR;
             currC += stepC;
         }
-
         const reversedWord = formedWord.split('').reverse().join('');
         const foundObj = window.placedWords.find(pw => (pw.word === formedWord || pw.word === reversedWord) && !pw.found);
-
         if (foundObj) {
             foundObj.found = true;
             markWordFoundTablet(foundObj.coords, foundObj.word);
-            document.getElementById('status-msg').textContent = `¡${foundObj.word} encontrada!`;
-            
-            if (window.currentGameMode === 'elimination') {
-                window.levelSeconds += 5; 
-                window.updateTimerDisplay();
-            }
-            if (window.placedWords.every(pw => pw.found)) {
-                setTimeout(window.levelComplete, 800);
-            }
+            if (window.currentGameMode === 'elimination') { window.levelSeconds += 5; updateTimerTablet(); }
+            if (window.placedWords.every(pw => pw.found)) setTimeout(levelCompleteTablet, 800);
         }
     }
 
@@ -299,5 +331,22 @@ if (window.innerWidth >= 700 && window.innerWidth <= 1024) {
                 ul.appendChild(newLi);
             }
         }
+    }
+
+    function levelCompleteTablet() {
+        clearInterval(window.timerInterval);
+        const titleEl = document.getElementById('level-complete-title');
+        const btnNext = document.getElementById('btn-next');
+        const finalForm = document.getElementById('final-form');
+        if(window.currentLevelIndex === 9) {
+            titleEl.textContent = "¡INCREIBLE! Has completado el juego.";
+            btnNext.classList.add('hidden');
+            finalForm.classList.remove('hidden');
+        } else {
+            titleEl.textContent = "¡Nivel Completado!";
+            btnNext.classList.remove('hidden');
+            finalForm.classList.add('hidden');
+        }
+        showScreen('level-complete-screen');
     }
 }
