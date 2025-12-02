@@ -1,62 +1,28 @@
-@media (min-width: 600px) and (max-width: 1024px) {
-    /* --- HEADER --- */
+@media (min-width: 768px) and (max-width: 1024px) {
+    /* Header Alineado */
     .header-compact {
         padding: 10px 20px;
         justify-content: flex-start;
         gap: 20px;
     }
-
     .header-left-group {
-        display: flex;
-        align-items: center;
         gap: 15px;
-        flex-grow: 1;
     }
     
-    .menu-btn-compact { order: 1; margin-right: 10px; }
-    .info-group { order: 2; display: flex; gap: 10px; }
-
-    .info-pill {
-        font-size: 1rem;
-        padding: 6px 15px;
-    }
-
-    .debug-btn {
-        position: relative; /* En flujo normal a la derecha */
-        margin-left: auto; 
-    }
-
-    /* --- TABLERO MAXIMIZADO --- */
-    .game-layout {
-        padding: 0;
-        gap: 0;
-    }
-    
+    /* Grid Maximizado */
     .grid-wrapper {
-        width: 98%;
-        max-width: 98%;
-        margin: 5px auto;
-        padding: 2px; /* Mínimo padding */
-        border-radius: 12px;
+        width: 100%;
+        margin: 0;
+        padding: 5px;
+        border-radius: 0;
         flex-grow: 1;
         max-height: none;
     }
-
-    #grid {
-        gap: 2px;
-    }
-
-    /* --- PANEL --- */
+    
+    /* Panel (7 palabras) */
     .words-panel {
-        height: 120px; /* Altura media */
-        max-height: 120px;
-        padding: 8px;
-        flex-shrink: 0;
+        height: 140px; 
+        max-height: 140px;
+        padding: 10px;
     }
-    
-    #word-list {
-        gap: 6px;
-    }
-    
-    .title-tile { width: 40px; height: 40px; font-size: 22px; }
 }
