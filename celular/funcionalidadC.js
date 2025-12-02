@@ -2,6 +2,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+// Prevenir ejecución múltiple
+if (window.mobileModeLoaded) return;
+window.mobileModeLoaded = true;
+
 // DETECCIÓN: Ejecutar solo si es celular
 if (window.matchMedia("(max-width: 767px)").matches) {
     console.log("--- MODO CELULAR ACTIVADO ---");

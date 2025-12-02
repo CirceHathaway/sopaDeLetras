@@ -1,3 +1,7 @@
+// Prevenir ejecución múltiple
+if (window.mobileModeLoaded) return;
+window.mobileModeLoaded = true;
+
 if (window.innerWidth >= 768 && window.innerWidth <= 1024) {
     console.log("--- MODO TABLETA ACTIVADO ---");
 
@@ -255,18 +259,19 @@ if (window.innerWidth >= 768 && window.innerWidth <= 1024) {
         }
     }
 
-    function renderWordListT(wordsRef) {
-        const listEl = document.getElementById('word-list');
-        listEl.innerHTML = '';
-        wordsRef.forEach(obj => {
-            if (obj.rendered) {
-                const li = document.createElement('li');
-                li.textContent = obj.word;
-                li.id = 'word-' + obj.word;
-                listEl.appendChild(li);
-            }
-        });
-    }
+    function renderWordListT() {
+    const listEl = document.getElementById('word-list');
+    listEl.innerHTML = '';
+    t_placedWords.forEach(obj => {
+        if (obj.rendered) {
+            const li = document.createElement('li');
+            li.textContent = obj.word;
+            li.id = 'word-' + obj.word;
+            if (obj.found) li.classList.add('found-word');
+            listEl.appendChild(li);
+        }
+    });
+}
 
     // Interaction T
     function handleTouchStartT(r, c, cellEl, e) {
