@@ -551,64 +551,97 @@ h2 {
 /* === SOLO PARA CELULAR === */
 @media (max-width: 768px) {
 
-    /* Contenedor del tablero (el problema principal) */
-    .grid-wrapper {
-        width: 100% !important;
-        height: auto !important;
-
-        padding: 0 !important;
-        margin: 0 !important;
-
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-
-        background: none !important;
-        border: 4px solid rgba(255,255,255,0.4) !important;
-        border-radius: 12px !important;
+    /* --- BOTONES SUPERIORES --- */
+    .menu-btn {
+        top: 10px !important;
+        left: 10px !important;
     }
 
-    /* Grid más grande y sin márgenes */
-    #grid {
-        margin: 0 !important;
-        padding: 0 !important;
-
-        height: auto !important;
-        width: auto !important;
-
-        display: grid !important;
-        gap: 0 !important;
-
-        transform: scale(1) !important;   /* evita que se achique */
+    .debug-btn {
+        top: 10px !important;
+        right: 10px !important;
     }
 
-    /* Celdas más grandes y sin espacios */
-    .cell {
-        width: 34px !important;
-        height: 34px !important;
-
-        font-size: 1.9rem !important;
-        font-weight: 700 !important;
-
-        margin: 0 !important;
-        padding: 0 !important;
-
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-    }
-
-    /* Ajustar el contenedor del nivel si hace presión */
-    .game-layout {
-        padding: 0 !important;
-        margin: 0 !important;
-        gap: 6px !important;
-    }
-
-    /* Ajuste por si el status o título empujan el tablero */
+    /* --- INFO BAR (Nivel + Tiempo) --- */
     .info-bar {
-        margin: 0 !important;
-        padding: 0 !important;
+        margin-top: 60px; /* baja la barra para que NO se mezcle con el menú */
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        padding: 0 20px;
     }
 
+    .info-pill {
+        font-size: 1rem;
+        padding: 6px 14px;
+    }
+
+    /* --- LAYOUT PRINCIPAL --- */
+    .game-layout {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 165px); 
+        /* 165px = menú + info bar + mensaje estado */
+        width: 100%;
+        overflow: hidden;
+    }
+
+    /* --- MENSAJE "Selecciona inicio y fin" --- */
+    #status-msg {
+        margin-top: 15px;
+        font-size: 1rem;
+    }
+
+    /* --- GRID --- */
+    .grid-wrapper {
+        flex: 1;  
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 10px;
+        overflow: hidden;
+    }
+
+    #grid {
+        width: 100%;
+        height: 100%;
+        display: grid;
+        aspect-ratio: 1 / 1; 
+        max-width: 100%;
+        max-height: 100%;
+        touch-action: none;
+    }
+
+    /* --- PANEL DE PALABRAS FIJO ABAJO --- */
+    .words-panel {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: rgba(0,0,0,0.85);
+        padding: 10px 0 15px;
+        border-top: 2px solid #fff;
+        text-align: center;
+        z-index: 999;
+        height: 120px;
+        overflow-y: auto;
+    }
+
+    .words-panel h3 {
+        font-size: 1.1rem;
+        margin-bottom: 5px;
+    }
+
+    #word-list {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        padding: 0 10px;
+    }
+
+    #word-list li {
+        font-size: 0.9rem;
+        padding: 4px 8px;
+    }
 }
