@@ -1,8 +1,8 @@
-if (window.innerWidth >= 768 && window.innerWidth <= 1024) {
-
-    const T_ROWS = 16;
-    const T_COLS = 15;
-    const T_MAX_WORDS = 7;
+if (window.innerWidth >= 700 && window.innerWidth <= 1024) {
+    
+    const T_ROWS = 16; 
+    const T_COLS = 15; 
+    const T_MAX_WORDS = 7; 
 
     const tabletLevels = [
         { level: 1, words: ["SOL", "LUNA", "MAR", "GATO", "PERRO"] },
@@ -17,9 +17,7 @@ if (window.innerWidth >= 768 && window.innerWidth <= 1024) {
         { level: 10, words: ["EFIMERO", "INEFABLE", "RESILIENCIA", "SEMPITERNO", "ELOCUENCIA", "MELANCOLIA", "SERENDIPIA", "ETEREO", "LIMERENCIA", "ARREBOL", "EPOCA", "SONETO", "ASTRAL", "ETERNO"] }
     ];
 
-    // Sobrescribir initLevel global
     window.initLevel = function() {
-        console.log("Iniciando modo TABLETA (16x15)");
         let lvlTxt = document.getElementById('level-indicator').textContent;
         let lvl = parseInt(lvlTxt.split('/')[0].replace('Nivel ', '')) || 1;
         let idx = lvl - 1;
@@ -29,9 +27,9 @@ if (window.innerWidth >= 768 && window.innerWidth <= 1024) {
 
         let grid = Array(T_ROWS).fill(null).map(() => Array(T_COLS).fill(''));
         let placedWords = [];
-        
         let success = false;
         let attempts = 0;
+        
         while(!success && attempts < 50) {
             grid = Array(T_ROWS).fill(null).map(() => Array(T_COLS).fill(''));
             placedWords = [];
@@ -46,18 +44,17 @@ if (window.innerWidth >= 768 && window.innerWidth <= 1024) {
         
         fillEmptySpacesTablet(T_ROWS, T_COLS, grid);
         
-        setTimeout(() => {
-            renderGridTablet(T_ROWS, T_COLS, grid);
-        }, 50);
+        setTimeout(() => renderGridTablet(T_ROWS, T_COLS, grid), 50);
+        setTimeout(() => renderGridTablet(T_ROWS, T_COLS, grid), 200);
         
         placedWords.forEach((pw, i) => pw.rendered = i < T_MAX_WORDS);
         renderWordListTablet(placedWords);
         
-        // Exportar estado global para que los eventos funcionen
         window.grid = grid;
         window.placedWords = placedWords;
-        
-        // Timer (reutilizamos la variable global si existe, o la creamos)
+        window.currentRows = T_ROWS;
+        window.currentCols = T_COLS;
+
         if (window.currentGameMode === 'elimination') {
             window.levelSeconds = levelData.words.length * 12; 
             window.updateTimerDisplay();
@@ -123,22 +120,26 @@ if (window.innerWidth >= 768 && window.innerWidth <= 1024) {
 
     function renderGridTablet(rows, cols, gridRef) {
         const gridEl = document.getElementById('grid');
-        gridEl.innerHTML = '';
         const wrapper = document.getElementById('grid-wrapper');
-        const rect = wrapper.getBoundingClientRect();
-        const gap = 2;
+        if (!gridEl || !wrapper) return;
         
-        const w = (rect.width - (cols - 1) * gap) / cols;
-        const h = (rect.height - (rows - 1) * gap) / rows;
+        gridEl.innerHTML = '';
+        let rect = wrapper.getBoundingClientRect();
+        let width = rect.width;
+        let height = rect.height;
+        
+        if (width === 0) width = window.innerWidth - 10;
+        if (height === 0) height = window.innerHeight - 200;
+
+        const gap = 2;
+        const w = (width - (cols - 1) * gap) / cols;
+        const h = (height - (rows - 1) * gap) / rows;
         const cellSize = Math.floor(Math.min(w, h));
         
+        gridEl.style.display = 'grid';
         gridEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
         gridEl.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
         gridEl.style.gap = `${gap}px`;
-        
-        // Usamos el handler global de celular (funcionalidadC.js) si está cargado, 
-        // o definimos uno propio si solo carga tablet. Asumimos que se cargan ambos o usamos el global.
-        // Para seguridad, definimos el handler touch aquí también.
         
         window.removeEventListener('touchend', handleGlobalTouchEndTablet);
         window.addEventListener('touchend', handleGlobalTouchEndTablet);
@@ -157,7 +158,6 @@ if (window.innerWidth >= 768 && window.innerWidth <= 1024) {
                 
                 cell.addEventListener('touchstart', (e) => handleTouchStartTablet(r, c, cell, e));
                 cell.addEventListener('touchmove', (e) => handleTouchMoveTablet(e));
-                
                 gridEl.appendChild(cell);
             }
         }
@@ -176,25 +176,19 @@ if (window.innerWidth >= 768 && window.innerWidth <= 1024) {
         });
     }
 
-    // Lógica Táctil Tableta (Local)
     let t_firstSelection = null;
     let t_isDragging = false;
 
     function handleTouchStartTablet(r, c, cellEl, e) {
         if(e.cancelable) e.preventDefault();
+        if (window.playTone) window.playTone(300, 'sine', 0.05);
         if (!t_firstSelection) {
             t_firstSelection = { r, c, el: cellEl };
             cellEl.classList.add('selected');
             t_isDragging = true;
         } else {
-            if (t_firstSelection.r === r && t_firstSelection.c === c) {
-                t_isDragging = true;
-            } else {
-                checkWordTablet(t_firstSelection, { r, c });
-                clearVisualsTablet();
-                t_firstSelection = null;
-                t_isDragging = false;
-            }
+            if (t_firstSelection.r === r && t_firstSelection.c === c) { t_isDragging = true; } 
+            else { checkWordTablet(t_firstSelection, { r, c }); clearVisualsTablet(); t_firstSelection = null; t_isDragging = false; }
         }
     }
 
@@ -260,7 +254,6 @@ if (window.innerWidth >= 768 && window.innerWidth <= 1024) {
         let currC = start.c;
         let coords = [];
         
-        // Usamos variable global del modulo original
         const currentGrid = window.grid; 
 
         for (let i = 0; i <= steps; i++) {
