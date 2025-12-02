@@ -5,6 +5,7 @@ import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.c
 // Prevenir ejecución múltiple
 if (window.mobileModeLoaded) return;
 window.mobileModeLoaded = true;
+console.log("--- MODO CELULAR INICIADO ---");
 
 // DETECCIÓN: Ejecutar solo si es celular
 if (window.matchMedia("(max-width: 767px)").matches) {

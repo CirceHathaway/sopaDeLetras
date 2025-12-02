@@ -1,6 +1,7 @@
 // Prevenir ejecución múltiple
 if (window.mobileModeLoaded) return;
 window.mobileModeLoaded = true;
+console.log("--- MODO TABLET INICIADO ---");
 
 if (window.innerWidth >= 768 && window.innerWidth <= 1024) {
     console.log("--- MODO TABLETA ACTIVADO ---");

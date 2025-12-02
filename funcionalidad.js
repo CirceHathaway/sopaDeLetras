@@ -578,29 +578,3 @@ async function showScoreboard() {
         });
     }
 }
-
-// === DETECCIÓN DE DISPOSITIVO Y CARGA DINÁMICA ===
-function detectDeviceAndLoad() {
-    const width = window.innerWidth;
-    
-    if (width <= 767) {
-        // CELULAR
-        import('./celular/funcionalidadC.js').then(module => {
-            console.log("Modo CELULAR cargado dinámicamente");
-        }).catch(err => console.error("Error cargando móvil:", err));
-    } 
-    else if (width >= 768 && width <= 1024) {
-        // TABLET
-        import('./tablet/funcionalidadT.js').then(module => {
-            console.log("Modo TABLET cargado dinámicamente");
-        }).catch(err => console.error("Error cargando tablet:", err));
-    }
-    // Escritorio: ya está cargado este archivo
-}
-
-// Ejecutar al cargar y al rotar
-detectDeviceAndLoad();
-window.addEventListener('resize', () => {
-    clearTimeout(window.resizeTimer);
-    window.resizeTimer = setTimeout(detectDeviceAndLoad, 300);
-});

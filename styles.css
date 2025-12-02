@@ -546,3 +546,11 @@ h2 {
 @keyframes shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 
+@media (max-width: 480px) {
+    .title-tile { width: 35px; height: 35px; font-size: 18px; box-shadow: 0 4px 0 rgba(0,0,0,0.15); }
+    .title-row { gap: 5px; }
+    .info-bar { margin-top: 50px; }
+    .grid-wrapper { padding: 10px; border-radius: 16px; margin: 0 5px 10px 5px; }
+    #game-screen { padding-bottom: 0; }
+    .menu-buttons { flex-direction: column; } 
+}
