@@ -15,6 +15,7 @@ const firebaseConfig = {
 let db;
 let auth;
 let user;
+let placingHorizontal = true;
 
 try {
     const app = initializeApp(firebaseConfig);
@@ -85,7 +86,7 @@ let currentRows = 0;
 let currentCols = 0;
 let isDragging = false;
 let hasRevived = false; 
-const MAX_VISIBLE_WORDS = 11;
+const MAX_VISIBLE_WORDS = 6;
 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -133,53 +134,100 @@ function confirmExit() { document.getElementById('confirm-modal').classList.remo
 function closeConfirm() { document.getElementById('confirm-modal').classList.add('hidden'); }
 
 function initLevel() {
+    // Detectar móvil
+    const isMobile = window.innerWidth <= 768;
+
+    // Asegurarnos de que level index esté dentro de rango
+    if (currentLevelIndex < 0) currentLevelIndex = 0;
+    if (currentLevelIndex >= gameLevels.length) currentLevelIndex = gameLevels.length - 1;
+
     const levelData = gameLevels[currentLevelIndex];
-    currentCols = levelData.size;
-    currentRows = (levelData.level >= 5) ? 11 : levelData.size;
-    
-    document.getElementById('level-indicator').textContent = `Nivel ${levelData.level}/10`;
-    document.getElementById('status-msg').textContent = "Encuentra las palabras";
-    
+
+    // Forzar tamaño en móvil, sino usar definición por nivel
+    if (isMobile) {
+        currentRows = 14;
+        currentCols = 10;
+    } else {
+        currentCols = levelData.size;
+        currentRows = (levelData.level >= 5) ? 11 : levelData.size;
+    }
+
+    // Actualizar indicador de nivel (si existe)
+    const levelIndicatorEl = document.getElementById('level-indicator');
+    if (levelIndicatorEl) levelIndicatorEl.textContent = `Nivel ${levelData.level}/10`;
+
+    // Estado inicial
+    const statusMsgEl = document.getElementById('status-msg');
+    if (statusMsgEl) statusMsgEl.textContent = "Encuentra las palabras";
+
     stopTimer();
+
+    // Manejo del timer
     if (currentGameMode === 'elimination') {
-        levelSeconds = levelData.words.length * 12; 
+        levelSeconds = levelData.words.length * 12;
         updateTimerDisplay();
+        if (timerInterval) clearInterval(timerInterval);
         timerInterval = setInterval(() => {
             levelSeconds--;
-            totalSeconds++; 
+            totalSeconds++;
             updateTimerDisplay();
             if (levelSeconds <= 0) gameOver();
         }, 1000);
     } else {
         updateTimerDisplay();
+        if (timerInterval) clearInterval(timerInterval);
         timerInterval = setInterval(() => {
             totalSeconds++;
             updateTimerDisplay();
         }, 1000);
     }
 
+    // Reset de estado del tablero
     placedWords = [];
     firstSelection = null;
     isDragging = false;
 
+    // Intentos para colocar palabras
     let success = false;
     let attempts = 0;
-    while(!success && attempts < 50) {
-        grid = Array(currentRows).fill(null).map(() => Array(currentCols).fill(''));
+    while (!success && attempts < 100) {
+        // Crear grid vacío
+        grid = Array.from({ length: currentRows }, () => Array(currentCols).fill(''));
         placedWords = [];
         success = true;
+
+        // Intentar colocar cada palabra con tus funciones ya existentes
         for (let word of levelData.words) {
             if (!placeWord(word, currentRows, currentCols)) {
-                success = false; break;
+                success = false;
+                break;
             }
         }
         attempts++;
     }
 
+    // Rellenar espacios vacíos
     fillEmptySpaces(currentRows, currentCols);
+
+    // Renderizar grid (tu función renderGrid espera rows, cols)
     renderGrid(currentRows, currentCols);
+
+    // Determinar cuántas palabras mostrar inicialmente
     placedWords.forEach((pw, i) => pw.rendered = i < MAX_VISIBLE_WORDS);
+
+    // Renderizar lista de palabras (usa tu función)
     renderWordList();
+
+    // Asegurar listeners/touch funcionan (re-agregamos si es necesario)
+    // (Tus funciones renderGrid ya añaden los listeners sobre .cell)
+
+    // Si el grid no aparece o está vacío, damos consola útil
+    const gridEl = document.getElementById('grid');
+    if (!gridEl) {
+        console.warn('initLevel: elemento #grid no encontrado en el DOM.');
+    } else if (gridEl.children.length === 0) {
+        console.warn('initLevel: grid renderizado pero sin celdas — revisa currentRows/currentCols o renderGrid().');
+    }
 }
 
 function stopTimer() {

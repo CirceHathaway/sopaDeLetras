@@ -546,11 +546,69 @@ h2 {
 @keyframes shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 
-@media (max-width: 480px) {
-    .title-tile { width: 35px; height: 35px; font-size: 18px; box-shadow: 0 4px 0 rgba(0,0,0,0.15); }
-    .title-row { gap: 5px; }
-    .info-bar { margin-top: 50px; }
-    .grid-wrapper { padding: 10px; border-radius: 16px; margin: 0 5px 10px 5px; }
-    #game-screen { padding-bottom: 0; }
-    .menu-buttons { flex-direction: column; } 
+
+
+/* === SOLO PARA CELULAR === */
+@media (max-width: 768px) {
+
+    /* Contenedor del tablero (el problema principal) */
+    .grid-wrapper {
+        width: 100% !important;
+        height: auto !important;
+
+        padding: 0 !important;
+        margin: 0 !important;
+
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+
+        background: none !important;
+        border: 4px solid rgba(255,255,255,0.4) !important;
+        border-radius: 12px !important;
+    }
+
+    /* Grid más grande y sin márgenes */
+    #grid {
+        margin: 0 !important;
+        padding: 0 !important;
+
+        height: auto !important;
+        width: auto !important;
+
+        display: grid !important;
+        gap: 0 !important;
+
+        transform: scale(1) !important;   /* evita que se achique */
+    }
+
+    /* Celdas más grandes y sin espacios */
+    .cell {
+        width: 34px !important;
+        height: 34px !important;
+
+        font-size: 1.9rem !important;
+        font-weight: 700 !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+    }
+
+    /* Ajustar el contenedor del nivel si hace presión */
+    .game-layout {
+        padding: 0 !important;
+        margin: 0 !important;
+        gap: 6px !important;
+    }
+
+    /* Ajuste por si el status o título empujan el tablero */
+    .info-bar {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
 }
