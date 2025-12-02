@@ -1,9 +1,8 @@
-// Detectar si es Tablet
-if (window.matchMedia("(min-width: 768px) and (max-width: 1024px)").matches) {
-    
+if (window.innerWidth >= 768 && window.innerWidth <= 1024) {
+
     const T_ROWS = 16;
     const T_COLS = 15;
-    const T_MAX_WORDS = 7; // Tablet
+    const T_MAX_WORDS = 7;
 
     const tabletLevels = [
         { level: 1, words: ["SOL", "LUNA", "MAR", "GATO", "PERRO"] },
@@ -18,6 +17,7 @@ if (window.matchMedia("(min-width: 768px) and (max-width: 1024px)").matches) {
         { level: 10, words: ["EFIMERO", "INEFABLE", "RESILIENCIA", "SEMPITERNO", "ELOCUENCIA", "MELANCOLIA", "SERENDIPIA", "ETEREO", "LIMERENCIA", "ARREBOL", "EPOCA", "SONETO", "ASTRAL", "ETERNO"] }
     ];
 
+    // Sobrescribir initLevel global
     window.initLevel = function() {
         console.log("Iniciando modo TABLETA (16x15)");
         let lvlTxt = document.getElementById('level-indicator').textContent;
@@ -27,7 +27,6 @@ if (window.matchMedia("(min-width: 768px) and (max-width: 1024px)").matches) {
 
         if(window.stopTimer) window.stopTimer();
 
-        // GRID FIJO 16x15
         let grid = Array(T_ROWS).fill(null).map(() => Array(T_COLS).fill(''));
         let placedWords = [];
         
@@ -54,11 +53,11 @@ if (window.matchMedia("(min-width: 768px) and (max-width: 1024px)").matches) {
         placedWords.forEach((pw, i) => pw.rendered = i < T_MAX_WORDS);
         renderWordListTablet(placedWords);
         
+        // Exportar estado global para que los eventos funcionen
         window.grid = grid;
         window.placedWords = placedWords;
-        window.currentRows = T_ROWS;
-        window.currentCols = T_COLS;
-
+        
+        // Timer (reutilizamos la variable global si existe, o la creamos)
         if (window.currentGameMode === 'elimination') {
             window.levelSeconds = levelData.words.length * 12; 
             window.updateTimerDisplay();
@@ -107,10 +106,7 @@ if (window.matchMedia("(min-width: 768px) and (max-width: 1024px)").matches) {
         if (dir === 1 && row + word.length > rows) return false;
         if (dir === 2 && (row + word.length > rows || col + word.length > cols)) return false;
         for (let i = 0; i < word.length; i++) {
-            let existing;
-            if (dir === 0) existing = gridRef[row][col + i];
-            else if (dir === 1) existing = gridRef[row + i][col];
-            else if (dir === 2) existing = gridRef[row + i][col + i];
+            let existing = gridRef[dir === 0 ? row : (dir === 1 ? row + i : row + i)][dir === 0 ? col + i : (dir === 1 ? col : col + i)];
             if (existing !== '' && existing !== word[i]) return false;
         }
         return true;
@@ -130,8 +126,8 @@ if (window.matchMedia("(min-width: 768px) and (max-width: 1024px)").matches) {
         gridEl.innerHTML = '';
         const wrapper = document.getElementById('grid-wrapper');
         const rect = wrapper.getBoundingClientRect();
-        
         const gap = 2;
+        
         const w = (rect.width - (cols - 1) * gap) / cols;
         const h = (rect.height - (rows - 1) * gap) / rows;
         const cellSize = Math.floor(Math.min(w, h));
@@ -139,8 +135,11 @@ if (window.matchMedia("(min-width: 768px) and (max-width: 1024px)").matches) {
         gridEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
         gridEl.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
         gridEl.style.gap = `${gap}px`;
-
-        // Replicamos lógica táctil para tableta
+        
+        // Usamos el handler global de celular (funcionalidadC.js) si está cargado, 
+        // o definimos uno propio si solo carga tablet. Asumimos que se cargan ambos o usamos el global.
+        // Para seguridad, definimos el handler touch aquí también.
+        
         window.removeEventListener('touchend', handleGlobalTouchEndTablet);
         window.addEventListener('touchend', handleGlobalTouchEndTablet);
 
@@ -158,6 +157,7 @@ if (window.matchMedia("(min-width: 768px) and (max-width: 1024px)").matches) {
                 
                 cell.addEventListener('touchstart', (e) => handleTouchStartTablet(r, c, cell, e));
                 cell.addEventListener('touchmove', (e) => handleTouchMoveTablet(e));
+                
                 gridEl.appendChild(cell);
             }
         }
@@ -176,20 +176,25 @@ if (window.matchMedia("(min-width: 768px) and (max-width: 1024px)").matches) {
         });
     }
 
-    // Lógica Táctil Tableta (Copia de celular adaptada)
+    // Lógica Táctil Tableta (Local)
     let t_firstSelection = null;
     let t_isDragging = false;
 
     function handleTouchStartTablet(r, c, cellEl, e) {
         if(e.cancelable) e.preventDefault();
-        if (window.playTone) window.playTone(300, 'sine', 0.05);
         if (!t_firstSelection) {
             t_firstSelection = { r, c, el: cellEl };
             cellEl.classList.add('selected');
             t_isDragging = true;
         } else {
-            if (t_firstSelection.r === r && t_firstSelection.c === c) { t_isDragging = true; } 
-            else { checkWordTablet(t_firstSelection, { r, c }); clearVisualsTablet(); t_firstSelection = null; t_isDragging = false; }
+            if (t_firstSelection.r === r && t_firstSelection.c === c) {
+                t_isDragging = true;
+            } else {
+                checkWordTablet(t_firstSelection, { r, c });
+                clearVisualsTablet();
+                t_firstSelection = null;
+                t_isDragging = false;
+            }
         }
     }
 
@@ -254,8 +259,10 @@ if (window.matchMedia("(min-width: 768px) and (max-width: 1024px)").matches) {
         let currR = start.r;
         let currC = start.c;
         let coords = [];
-        const currentGrid = window.grid; 
         
+        // Usamos variable global del modulo original
+        const currentGrid = window.grid; 
+
         for (let i = 0; i <= steps; i++) {
             formedWord += currentGrid[currR][currC];
             coords.push({r: currR, c: currC});
@@ -264,20 +271,18 @@ if (window.matchMedia("(min-width: 768px) and (max-width: 1024px)").matches) {
         }
 
         const reversedWord = formedWord.split('').reverse().join('');
-        const currentWords = window.placedWords;
-        const foundObj = currentWords.find(pw => (pw.word === formedWord || pw.word === reversedWord) && !pw.found);
+        const foundObj = window.placedWords.find(pw => (pw.word === formedWord || pw.word === reversedWord) && !pw.found);
 
         if (foundObj) {
             foundObj.found = true;
             markWordFoundTablet(foundObj.coords, foundObj.word);
             document.getElementById('status-msg').textContent = `¡${foundObj.word} encontrada!`;
-            if (window.playTone) window.playTone(440, 'sine', 0.1);
             
             if (window.currentGameMode === 'elimination') {
                 window.levelSeconds += 5; 
                 window.updateTimerDisplay();
             }
-            if (currentWords.every(pw => pw.found)) {
+            if (window.placedWords.every(pw => pw.found)) {
                 setTimeout(window.levelComplete, 800);
             }
         }
