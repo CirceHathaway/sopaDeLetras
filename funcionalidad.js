@@ -2,7 +2,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// Tu configuración de Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyBXOH-m6L0kS-0qVSAAh837R-lVIlFt2ZQ",
   authDomain: "sopa-de-letras-1bb46.firebaseapp.com",
@@ -15,7 +14,6 @@ const firebaseConfig = {
 let db;
 let auth;
 let user;
-let placingHorizontal = true;
 
 try {
     const app = initializeApp(firebaseConfig);
@@ -24,7 +22,7 @@ try {
     signInAnonymously(auth).then(u => user = u.user).catch(console.error);
 } catch (e) { console.error(e); }
 
-// --- VARIABLES GLOBALES ---
+// Globales
 window.showModeSelection = showModeSelection;
 window.startMode = startMode;
 window.goToMenu = goToMenu;
@@ -36,7 +34,31 @@ window.showScoreboard = showScoreboard;
 window.solveLevel = solveLevel; 
 window.revivePlayer = revivePlayer;
 
-// --- ANIMACIÓN DE FONDO ---
+// --- DETECCIÓN Y CONSTANTES ---
+function isMobile() { return window.innerWidth < 600; }
+function isTablet() { return window.innerWidth >= 600 && window.innerWidth <= 1024; }
+
+function getMaxVisibleWords() {
+    if (isMobile()) return 4;
+    if (isTablet()) return 4; // Tablet también 4 palabras según pedido
+    return 11; 
+}
+
+function getGridDimensions(levelData) {
+    if (isMobile()) {
+        return { rows: 14, cols: 10 }; // Fijo Celular
+    } else if (isTablet()) {
+        return { rows: 16, cols: 15 }; // Fijo Tablet
+    } else {
+        // Escritorio: Variable según nivel
+        return { 
+            cols: levelData.size, 
+            rows: (levelData.level >= 5) ? 11 : levelData.size 
+        };
+    }
+}
+
+// --- ANIMACIÓN FONDO ---
 let animInterval;
 function startBackgroundAnimation() {
     const container = document.getElementById('background-animation');
@@ -60,7 +82,7 @@ function stopBackgroundAnimation() {
 }
 startBackgroundAnimation();
 
-// --- DATOS DE NIVELES ---
+// --- NIVELES ---
 const gameLevels = [
     { level: 1, size: 8, words: ["SOL", "LUNA", "MAR", "GATO", "PERRO"] },
     { level: 2, size: 9, words: ["MESA", "SILLA", "LAPIZ", "LIBRO", "PAPEL", "CASA"] },
@@ -86,10 +108,8 @@ let currentRows = 0;
 let currentCols = 0;
 let isDragging = false;
 let hasRevived = false; 
-const MAX_VISIBLE_WORDS = 6;
 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
 function playTone(freq, type, duration, vol = 0.05) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const osc = audioCtx.createOscillator();
@@ -104,144 +124,81 @@ function playTone(freq, type, duration, vol = 0.05) {
     osc.stop(audioCtx.currentTime + duration);
 }
 
-function showModeSelection() {
-    showScreen('mode-screen');
-}
-
-function startMode(mode) {
-    currentGameMode = mode;
-    currentLevelIndex = 0; 
-    totalSeconds = 0;
-    hasRevived = false; 
-    showScreen('game-screen');
-    stopBackgroundAnimation();
-    initLevel();
-}
-
-function goToMenu() {
-    stopTimer();
-    document.getElementById('confirm-modal').classList.add('hidden');
-    showScreen('menu-screen');
-    startBackgroundAnimation();
-}
-
-function showScreen(id) {
-    document.querySelectorAll('body > div[id$="-screen"]').forEach(div => div.classList.add('hidden'));
-    document.getElementById(id).classList.remove('hidden');
-}
-
+function showModeSelection() { showScreen('mode-screen'); }
+function startMode(mode) { currentGameMode = mode; currentLevelIndex = 0; totalSeconds = 0; hasRevived = false; showScreen('game-screen'); stopBackgroundAnimation(); initLevel(); }
+function goToMenu() { stopTimer(); document.getElementById('confirm-modal').classList.add('hidden'); showScreen('menu-screen'); startBackgroundAnimation(); }
+function showScreen(id) { document.querySelectorAll('body > div[id$="-screen"]').forEach(div => div.classList.add('hidden')); document.getElementById(id).classList.remove('hidden'); }
 function confirmExit() { document.getElementById('confirm-modal').classList.remove('hidden'); }
 function closeConfirm() { document.getElementById('confirm-modal').classList.add('hidden'); }
 
 function initLevel() {
-    // Detectar móvil
-    const isMobile = window.innerWidth <= 768;
-
-    // Asegurarnos de que level index esté dentro de rango
-    if (currentLevelIndex < 0) currentLevelIndex = 0;
-    if (currentLevelIndex >= gameLevels.length) currentLevelIndex = gameLevels.length - 1;
-
     const levelData = gameLevels[currentLevelIndex];
-
-    // Forzar tamaño en móvil, sino usar definición por nivel
-    if (isMobile) {
-        currentRows = 14;
-        currentCols = 10;
-    } else {
-        currentCols = levelData.size;
-        currentRows = (levelData.level >= 5) ? 11 : levelData.size;
-    }
-
-    // Actualizar indicador de nivel (si existe)
-    const levelIndicatorEl = document.getElementById('level-indicator');
-    if (levelIndicatorEl) levelIndicatorEl.textContent = `Nivel ${levelData.level}/10`;
-
-    // Estado inicial
-    const statusMsgEl = document.getElementById('status-msg');
-    if (statusMsgEl) statusMsgEl.textContent = "Encuentra las palabras";
-
+    
+    // Determinar dimensiones según dispositivo
+    const dims = getGridDimensions(levelData);
+    currentRows = dims.rows;
+    currentCols = dims.cols;
+    
+    document.getElementById('level-indicator').textContent = `Nivel ${levelData.level}/10`;
+    document.getElementById('status-msg').textContent = "Encuentra las palabras";
+    
     stopTimer();
-
-    // Manejo del timer
     if (currentGameMode === 'elimination') {
-        levelSeconds = levelData.words.length * 12;
+        levelSeconds = levelData.words.length * 12; 
         updateTimerDisplay();
-        if (timerInterval) clearInterval(timerInterval);
         timerInterval = setInterval(() => {
             levelSeconds--;
-            totalSeconds++;
+            totalSeconds++; 
             updateTimerDisplay();
             if (levelSeconds <= 0) gameOver();
         }, 1000);
     } else {
         updateTimerDisplay();
-        if (timerInterval) clearInterval(timerInterval);
         timerInterval = setInterval(() => {
             totalSeconds++;
             updateTimerDisplay();
         }, 1000);
     }
 
-    // Reset de estado del tablero
     placedWords = [];
     firstSelection = null;
     isDragging = false;
 
-    // Intentos para colocar palabras
     let success = false;
     let attempts = 0;
-    while (!success && attempts < 100) {
-        // Crear grid vacío
-        grid = Array.from({ length: currentRows }, () => Array(currentCols).fill(''));
+    while(!success && attempts < 50) {
+        grid = Array(currentRows).fill(null).map(() => Array(currentCols).fill(''));
         placedWords = [];
         success = true;
-
-        // Intentar colocar cada palabra con tus funciones ya existentes
         for (let word of levelData.words) {
             if (!placeWord(word, currentRows, currentCols)) {
-                success = false;
-                break;
+                success = false; break;
             }
         }
         attempts++;
     }
 
-    // Rellenar espacios vacíos
     fillEmptySpaces(currentRows, currentCols);
-
-    // Renderizar grid (tu función renderGrid espera rows, cols)
-    renderGrid(currentRows, currentCols);
-
-    // Determinar cuántas palabras mostrar inicialmente
-    placedWords.forEach((pw, i) => pw.rendered = i < MAX_VISIBLE_WORDS);
-
-    // Renderizar lista de palabras (usa tu función)
+    
+    // Renderizado con cálculo de tamaño exacto
+    // Timeout para asegurar que el CSS ha aplicado el layout flex
+    setTimeout(() => {
+        renderGrid(currentRows, currentCols);
+    }, 50);
+    
+    const limit = getMaxVisibleWords();
+    placedWords.forEach((pw, i) => pw.rendered = i < limit);
     renderWordList();
-
-    // Asegurar listeners/touch funcionan (re-agregamos si es necesario)
-    // (Tus funciones renderGrid ya añaden los listeners sobre .cell)
-
-    // Si el grid no aparece o está vacío, damos consola útil
-    const gridEl = document.getElementById('grid');
-    if (!gridEl) {
-        console.warn('initLevel: elemento #grid no encontrado en el DOM.');
-    } else if (gridEl.children.length === 0) {
-        console.warn('initLevel: grid renderizado pero sin celdas — revisa currentRows/currentCols o renderGrid().');
-    }
 }
 
-function stopTimer() {
-    if (timerInterval) clearInterval(timerInterval);
-}
-
+function stopTimer() { if (timerInterval) clearInterval(timerInterval); }
 function updateTimerDisplay() {
     const timerEl = document.getElementById('timer');
     if (currentGameMode === 'elimination') {
         const mins = Math.floor(levelSeconds / 60).toString().padStart(2, '0');
         const secs = (levelSeconds % 60).toString().padStart(2, '0');
         timerEl.textContent = `${mins}:${secs}`;
-        if (levelSeconds <= 10) timerEl.classList.add('timer-danger');
-        else timerEl.classList.remove('timer-danger');
+        if (levelSeconds <= 10) timerEl.classList.add('timer-danger'); else timerEl.classList.remove('timer-danger');
     } else {
         const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
         const secs = (totalSeconds % 60).toString().padStart(2, '0');
@@ -253,92 +210,56 @@ function updateTimerDisplay() {
     document.getElementById('level-stats').textContent = `Tiempo Total: ${tmins}:${tsecs}`;
 }
 
-function gameOver() {
-    stopTimer();
-    const reviveContainer = document.getElementById('revive-container');
-    if (!hasRevived) {
-        reviveContainer.style.display = 'flex'; // Flex para centrar
-    } else {
-        reviveContainer.style.display = 'none';
-        document.querySelector('#game-over-screen h2').textContent = "Game Over";
-    }
-    showScreen('game-over-screen');
-    playTone(150, 'sawtooth', 0.5); 
-}
+function gameOver() { stopTimer(); const reviveContainer = document.getElementById('revive-container'); if (!hasRevived) reviveContainer.style.display = 'flex'; else { reviveContainer.style.display = 'none'; document.querySelector('#game-over-screen h2').textContent = "Game Over"; } showScreen('game-over-screen'); playTone(150, 'sawtooth', 0.5); }
+function revivePlayer() { hasRevived = true; levelSeconds += 30; showScreen('game-screen'); timerInterval = setInterval(() => { levelSeconds--; totalSeconds++; updateTimerDisplay(); if (levelSeconds <= 0) gameOver(); }, 1000); }
+function placeWord(word, rows, cols) { let placed = false; let attempts = 0; while (!placed && attempts < 100) { const dir = Math.floor(Math.random() * 3); const row = Math.floor(Math.random() * rows); const col = Math.floor(Math.random() * cols); if (canPlace(word, row, col, dir, rows, cols)) { let coords = []; for (let i = 0; i < word.length; i++) { let r, c; if (dir === 0) { r = row; c = col + i; } else if (dir === 1) { r = row + i; c = col; } else if (dir === 2) { r = row + i; c = col + i; } grid[r][c] = word[i]; coords.push({ r, c }); } placedWords.push({ word: word, found: false, coords: coords, rendered: false }); placed = true; } attempts++; } return placed; }
+function canPlace(word, row, col, dir, rows, cols) { if (dir === 0 && col + word.length > cols) return false; if (dir === 1 && row + word.length > rows) return false; if (dir === 2 && (row + word.length > rows || col + word.length > cols)) return false; for (let i = 0; i < word.length; i++) { let existing; if (dir === 0) existing = grid[row][col + i]; else if (dir === 1) existing = grid[row + i][col]; else if (dir === 2) existing = grid[row + i][col + i]; if (existing !== '' && existing !== word[i]) return false; } return true; }
+function fillEmptySpaces(rows, cols) { const letters = "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ"; for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { if (grid[r][c] === '') grid[r][c] = letters.charAt(Math.floor(Math.random() * letters.length)); } } }
 
-function revivePlayer() {
-    hasRevived = true;
-    levelSeconds += 30; 
-    showScreen('game-screen');
-    timerInterval = setInterval(() => {
-        levelSeconds--;
-        totalSeconds++;
-        updateTimerDisplay();
-        if (levelSeconds <= 0) gameOver();
-    }, 1000);
-}
-
-function placeWord(word, rows, cols) {
-    let placed = false;
-    let attempts = 0;
-    while (!placed && attempts < 100) {
-        const dir = Math.floor(Math.random() * 3); 
-        const row = Math.floor(Math.random() * rows);
-        const col = Math.floor(Math.random() * cols);
-        if (canPlace(word, row, col, dir, rows, cols)) {
-            let coords = [];
-            for (let i = 0; i < word.length; i++) {
-                let r, c;
-                if (dir === 0) { r = row; c = col + i; }
-                else if (dir === 1) { r = row + i; c = col; }
-                else if (dir === 2) { r = row + i; c = col + i; }
-                grid[r][c] = word[i];
-                coords.push({ r, c });
-            }
-            placedWords.push({ word: word, found: false, coords: coords, rendered: false });
-            placed = true;
-        }
-        attempts++;
-    }
-    return placed;
-}
-
-function canPlace(word, row, col, dir, rows, cols) {
-    if (dir === 0 && col + word.length > cols) return false;
-    if (dir === 1 && row + word.length > rows) return false;
-    if (dir === 2 && (row + word.length > rows || col + word.length > cols)) return false;
-    for (let i = 0; i < word.length; i++) {
-        let existing;
-        if (dir === 0) existing = grid[row][col + i];
-        else if (dir === 1) existing = grid[row + i][col];
-        else if (dir === 2) existing = grid[row + i][col + i];
-        if (existing !== '' && existing !== word[i]) return false;
-    }
-    return true;
-}
-
-function fillEmptySpaces(rows, cols) {
-    const letters = "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ";
-    for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-            if (grid[r][c] === '') grid[r][c] = letters.charAt(Math.floor(Math.random() * letters.length));
-        }
-    }
-}
-
+// --- RENDERIZADO RESPONSIVE ---
 function renderGrid(rows, cols) {
     const gridEl = document.getElementById('grid');
     gridEl.innerHTML = '';
-    const gap = 5;
-    const availableVmin = 65; 
-    const divisor = rows; 
-    const cellSize = `calc((${availableVmin}vmin - ${divisor * gap}px) / ${divisor})`;
     
-    gridEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize})`;
-    gridEl.style.gridTemplateRows = `repeat(${rows}, ${cellSize})`;
+    const wrapper = document.querySelector('.grid-wrapper');
+    const rect = wrapper.getBoundingClientRect();
     
-    window.addEventListener('mouseup', handleGlobalMouseUp);
+    // Medimos espacio disponible REAL
+    // Fallback si es 0 (inicio)
+    let wAvailable = rect.width || window.innerWidth;
+    let hAvailable = rect.height || (window.innerHeight - 200);
+
+    let gap, cellSize;
+
+    if (isMobile() || isTablet()) {
+        // Lógica Móvil/Tablet: Llenar espacio con padding mínimo
+        gap = 1; 
+        const w = (wAvailable - (cols - 1) * gap) / cols;
+        const h = (hAvailable - (rows - 1) * gap) / rows;
+        cellSize = Math.floor(Math.min(w, h));
+    } else {
+        // Lógica Escritorio (vmin original)
+        gap = 5;
+        const availableVmin = 65; 
+        const divisor = rows; 
+        cellSize = `calc((${availableVmin}vmin - ${divisor * gap}px) / ${divisor})`;
+        // En escritorio grid-template-columns usa esta calc directamente
+    }
+
+    // Aplicar estilos
+    if (isMobile() || isTablet()) {
+        gridEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+        gridEl.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
+        gridEl.style.gap = `${gap}px`;
+    } else {
+        gridEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize})`;
+        gridEl.style.gridTemplateRows = `repeat(${rows}, ${cellSize})`;
+        gridEl.style.gap = `${gap}px`;
+    }
+
+    window.removeEventListener('touchend', handleGlobalMouseUp); // Limpiar
     window.addEventListener('touchend', handleGlobalMouseUp);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
 
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
@@ -347,282 +268,39 @@ function renderGrid(rows, cols) {
             cell.textContent = grid[r][c];
             cell.dataset.r = r;
             cell.dataset.c = c;
-            cell.style.fontSize = `calc(${cellSize} * 0.55)`;
+            
+            if (isMobile() || isTablet()) {
+                cell.style.width = `${cellSize}px`;
+                cell.style.height = `${cellSize}px`;
+                cell.style.fontSize = `${cellSize * 0.65}px`;
+            } else {
+                cell.style.width = '';
+                cell.style.height = '';
+                cell.style.fontSize = `calc(${cellSize} * 0.55)`;
+            }
             
             cell.addEventListener('mousedown', (e) => handleStart(r, c, cell, e));
             cell.addEventListener('touchstart', (e) => handleStart(r, c, cell, e));
             cell.addEventListener('mouseenter', (e) => handleMove(r, c, cell));
             cell.addEventListener('touchmove', (e) => handleTouchMove(e));
             cell.addEventListener('mouseup', () => handleEnd(r, c, cell));
-            
             gridEl.appendChild(cell);
         }
     }
 }
 
-function renderWordList() {
-    const listEl = document.getElementById('word-list');
-    listEl.innerHTML = '';
-    placedWords.forEach(obj => {
-        if (obj.rendered) {
-            const li = document.createElement('li');
-            li.textContent = obj.word;
-            li.id = 'word-' + obj.word;
-            listEl.appendChild(li);
-        }
-    });
-}
-
-function handleStart(r, c, cellEl, e) {
-    if(e.cancelable) e.preventDefault();
-    playTone(300, 'sine', 0.05);
-    if (!firstSelection) {
-        firstSelection = { r, c, el: cellEl };
-        cellEl.classList.add('selected');
-        isDragging = true;
-    } else {
-        if (firstSelection.r === r && firstSelection.c === c) {
-            isDragging = true;
-        } else {
-            checkWordAttempt(firstSelection, { r, c });
-            clearSelectionVisuals(); 
-            firstSelection = null;
-            isDragging = false;
-        }
-    }
-}
-
-function handleMove(r, c, cellEl) {
-    if (!isDragging || !firstSelection) return;
-    updateDragVisuals(firstSelection, {r, c});
-}
-
-function handleTouchMove(e) {
-    if (!isDragging || !firstSelection) return;
-    e.preventDefault();
-    const touch = e.touches[0];
-    const target = document.elementFromPoint(touch.clientX, touch.clientY);
-    if (target && target.classList.contains('cell')) {
-        const r = parseInt(target.dataset.r);
-        const c = parseInt(target.dataset.c);
-        updateDragVisuals(firstSelection, {r, c});
-    }
-}
-
-function handleEnd(r, c, cellEl) {
-    if (!isDragging) return;
-    isDragging = false;
-    if (firstSelection && (firstSelection.r !== r || firstSelection.c !== c)) {
-        checkWordAttempt(firstSelection, {r, c});
-        clearSelectionVisuals();
-        firstSelection = null; 
-    } 
-}
-
-function handleGlobalMouseUp(e) {
-    if (isDragging) {
-        isDragging = false;
-        const cells = document.querySelectorAll('.cell.selected');
-        cells.forEach(c => {
-            const r = parseInt(c.dataset.r);
-            const col = parseInt(c.dataset.c);
-            if (firstSelection && (r !== firstSelection.r || col !== firstSelection.c)) {
-                c.classList.remove('selected');
-            }
-        });
-    }
-}
-
-function updateDragVisuals(start, end) {
-    const allSelected = document.querySelectorAll('.cell.selected');
-    allSelected.forEach(el => {
-        const r = parseInt(el.dataset.r);
-        const c = parseInt(el.dataset.c);
-        if (r !== start.r || c !== start.c) el.classList.remove('selected');
-    });
-    const dRow = end.r - start.r;
-    const dCol = end.c - start.c;
-    if (dRow === 0 || dCol === 0 || Math.abs(dRow) === Math.abs(dCol)) {
-        const steps = Math.max(Math.abs(dRow), Math.abs(dCol));
-        const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow);
-        const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol);
-        let r = start.r;
-        let c = start.c;
-        for(let i=0; i<=steps; i++) {
-            const cell = document.querySelector(`.cell[data-r='${r}'][data-c='${c}']`);
-            if (cell) cell.classList.add('selected');
-            r += stepR; c += stepC;
-        }
-    }
-}
-
-function clearSelectionVisuals() {
-    document.querySelectorAll('.cell.selected').forEach(el => el.classList.remove('selected'));
-}
-
-function checkWordAttempt(start, end) {
-    const dRow = end.r - start.r;
-    const dCol = end.c - start.c;
-    if (dRow !== 0 && dCol !== 0 && Math.abs(dRow) !== Math.abs(dCol)) return; 
-
-    const steps = Math.max(Math.abs(dRow), Math.abs(dCol));
-    const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow);
-    const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol);
-
-    let formedWord = "";
-    let currR = start.r;
-    let currC = start.c;
-
-    for (let i = 0; i <= steps; i++) {
-        formedWord += grid[currR][currC];
-        currR += stepR;
-        currC += stepC;
-    }
-
-    const reversedWord = formedWord.split('').reverse().join('');
-    const foundObj = placedWords.find(pw => 
-        (pw.word === formedWord || pw.word === reversedWord) && !pw.found
-    );
-
-    if (foundObj) {
-        foundObj.found = true;
-        markWordFound(foundObj.coords, foundObj.word); 
-        document.getElementById('status-msg').textContent = `¡${foundObj.word} encontrada!`;
-        playTone(440, 'sine', 0.1);
-        setTimeout(() => playTone(660, 'sine', 0.15), 100);
-
-        if (currentGameMode === 'elimination') {
-            levelSeconds += 5; 
-            updateTimerDisplay();
-        }
-
-        if (placedWords.every(pw => pw.found)) {
-            setTimeout(levelComplete, 800);
-        }
-    }
-}
-
-function markWordFound(coords, wordText) {
-    coords.forEach((coord, index) => {
-        const cell = document.querySelector(`.cell[data-r='${coord.r}'][data-c='${coord.c}']`);
-        if(cell) setTimeout(() => cell.classList.add('found'), index * 40);
-    });
-
-    const li = document.getElementById('word-' + wordText);
-    if (li) {
-        li.remove();
-        const nextWord = placedWords.find(pw => !pw.rendered && !pw.found);
-        if (nextWord) {
-            nextWord.rendered = true;
-            const ul = document.getElementById('word-list');
-            const newLi = document.createElement('li');
-            newLi.textContent = nextWord.word;
-            newLi.id = 'word-' + nextWord.word;
-            newLi.style.animation = "fadeIn 0.5s";
-            ul.appendChild(newLi);
-        }
-    }
-}
-
-function levelComplete() {
-    stopTimer();
-    const titleEl = document.getElementById('level-complete-title');
-    const btnNext = document.getElementById('btn-next');
-    const finalForm = document.getElementById('final-form');
-    
-    if(currentLevelIndex === gameLevels.length - 1) {
-        titleEl.textContent = "¡INCREIBLE! Has completado el juego.";
-        btnNext.classList.add('hidden');
-        finalForm.classList.remove('hidden');
-    } else {
-        titleEl.textContent = "¡Nivel Completado!";
-        btnNext.classList.remove('hidden');
-        finalForm.classList.add('hidden');
-    }
-
-    showScreen('level-complete-screen');
-    playTone(400, 'triangle', 0.1);
-    setTimeout(() => playTone(500, 'triangle', 0.1), 100);
-    setTimeout(() => playTone(600, 'triangle', 0.2), 200);
-}
-
-function nextLevelWithAnimation() {
-    const btn = document.getElementById('btn-next');
-    if(btn.classList.contains('filling')) return;
-    btn.classList.add('filling');
-    setTimeout(() => {
-        btn.classList.remove('filling');
-        currentLevelIndex++;
-        showScreen('game-screen');
-        initLevel();
-    }, 1500);
-}
-
-function solveLevel() {
-    placedWords.forEach(pw => {
-        if(!pw.found) {
-            pw.found = true;
-            markWordFound(pw.coords, pw.word);
-        }
-    });
-    setTimeout(levelComplete, 500);
-}
-
-async function saveScore() {
-    const name = document.getElementById('player-name-input').value.trim() || "Anónimo";
-    const btnSave = document.getElementById('btn-save');
-    btnSave.classList.add('btn-loading'); 
-    
-    let savedToCloud = false;
-    if (db && user) {
-        try {
-            await addDoc(collection(db, 'scores'), { name: name, time: totalSeconds, date: new Date().toISOString(), uid: user.uid });
-            savedToCloud = true;
-        } catch (e) { console.warn(e); }
-    }
-    if (!savedToCloud) {
-        try {
-            const localData = JSON.parse(localStorage.getItem('sopa_scores') || '[]');
-            localData.push({ name: name, time: totalSeconds, date: new Date().toISOString(), source: 'local' });
-            localStorage.setItem('sopa_scores', JSON.stringify(localData));
-        } catch(e) { console.error(e); }
-    }
-    
-    goToMenu();
-    setTimeout(() => btnSave.classList.remove('btn-loading'), 500);
-}
-
-async function showScoreboard() {
-    showScreen('scoreboard-screen');
-    const list = document.getElementById('score-list');
-    list.innerHTML = '<li class="score-item">Cargando...</li>';
-    let scores = [];
-
-    if (db) {
-        try {
-            const querySnapshot = await getDocs(collection(db, 'scores'));
-            querySnapshot.forEach(doc => scores.push(doc.data()));
-        } catch (e) { console.warn(e); }
-    }
-    try {
-        const localData = JSON.parse(localStorage.getItem('sopa_scores') || '[]');
-        scores = [...scores, ...localData];
-    } catch(e) {}
-
-    scores.sort((a, b) => a.time - b.time);
-    scores = scores.slice(0, 3);
-
-    list.innerHTML = '';
-    if (scores.length === 0) list.innerHTML = '<li class="score-item">Aún no hay récords</li>';
-    else {
-        scores.forEach((s, index) => {
-            const mins = Math.floor(s.time / 60).toString().padStart(2, '0');
-            const secs = (s.time % 60).toString().padStart(2, '0');
-            const li = document.createElement('li');
-            li.className = 'score-item';
-            let rankIcon = index === 0 ? '🥇' : (index === 1 ? '🥈' : '🥉');
-            li.innerHTML = `<span class="score-rank">${rankIcon}</span><span class="score-name">${s.name}</span><span class="score-time">${mins}:${secs}</span>`;
-            list.appendChild(li);
-        });
-    }
-}
+function renderWordList() { const listEl = document.getElementById('word-list'); listEl.innerHTML = ''; placedWords.forEach(obj => { if (obj.rendered) { const li = document.createElement('li'); li.textContent = obj.word; li.id = 'word-' + obj.word; listEl.appendChild(li); } }); }
+function handleStart(r, c, cellEl, e) { if(e.cancelable) e.preventDefault(); playTone(300, 'sine', 0.05); if (!firstSelection) { firstSelection = { r, c, el: cellEl }; cellEl.classList.add('selected'); isDragging = true; } else { if (firstSelection.r === r && firstSelection.c === c) { isDragging = true; } else { checkWordAttempt(firstSelection, { r, c }); clearSelectionVisuals(); firstSelection = null; isDragging = false; } } }
+function handleMove(r, c, cellEl) { if (!isDragging || !firstSelection) return; updateDragVisuals(firstSelection, {r, c}); }
+function handleTouchMove(e) { if (!isDragging || !firstSelection) return; e.preventDefault(); const touch = e.touches[0]; const target = document.elementFromPoint(touch.clientX, touch.clientY); if (target && target.classList.contains('cell')) { const r = parseInt(target.dataset.r); const c = parseInt(target.dataset.c); updateDragVisuals(firstSelection, {r, c}); } }
+function handleEnd(r, c, cellEl) { if (!isDragging) return; isDragging = false; if (firstSelection && (firstSelection.r !== r || firstSelection.c !== c)) { checkWordAttempt(firstSelection, {r, c}); clearSelectionVisuals(); firstSelection = null; } }
+function handleGlobalMouseUp(e) { if (isDragging) { isDragging = false; const cells = document.querySelectorAll('.cell.selected'); cells.forEach(c => { const r = parseInt(c.dataset.r); const col = parseInt(c.dataset.c); if (firstSelection && (r !== firstSelection.r || col !== firstSelection.c)) { c.classList.remove('selected'); } }); } }
+function updateDragVisuals(start, end) { const allSelected = document.querySelectorAll('.cell.selected'); allSelected.forEach(el => { const r = parseInt(el.dataset.r); const c = parseInt(el.dataset.c); if (r !== start.r || c !== start.c) el.classList.remove('selected'); }); const dRow = end.r - start.r; const dCol = end.c - start.c; if (dRow === 0 || dCol === 0 || Math.abs(dRow) === Math.abs(dCol)) { const steps = Math.max(Math.abs(dRow), Math.abs(dCol)); const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow); const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol); let r = start.r; let c = start.c; for(let i=0; i<=steps; i++) { const cell = document.querySelector(`.cell[data-r='${r}'][data-c='${c}']`); if (cell) cell.classList.add('selected'); r += stepR; c += stepC; } } }
+function clearSelectionVisuals() { document.querySelectorAll('.cell.selected').forEach(el => el.classList.remove('selected')); }
+function checkWordAttempt(start, end) { const dRow = end.r - start.r; const dCol = end.c - start.c; if (dRow !== 0 && dCol !== 0 && Math.abs(dRow) !== Math.abs(dCol)) return; const steps = Math.max(Math.abs(dRow), Math.abs(dCol)); const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow); const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol); let formedWord = ""; let currR = start.r; let currC = start.c; for (let i = 0; i <= steps; i++) { formedWord += grid[currR][currC]; currR += stepR; currC += stepC; } const reversedWord = formedWord.split('').reverse().join(''); const foundObj = placedWords.find(pw => (pw.word === formedWord || pw.word === reversedWord) && !pw.found); if (foundObj) { foundObj.found = true; markWordFound(foundObj.coords, foundObj.word); document.getElementById('status-msg').textContent = `¡${foundObj.word} encontrada!`; playTone(440, 'sine', 0.1); setTimeout(() => playTone(660, 'sine', 0.15), 100); if (currentGameMode === 'elimination') { levelSeconds += 5; updateTimerDisplay(); } if (placedWords.every(pw => pw.found)) setTimeout(levelComplete, 800); } }
+function markWordFound(coords, wordText) { coords.forEach((coord, index) => { const cell = document.querySelector(`.cell[data-r='${coord.r}'][data-c='${coord.c}']`); if(cell) setTimeout(() => cell.classList.add('found'), index * 40); }); const li = document.getElementById('word-' + wordText); if (li) { li.remove(); const nextWord = placedWords.find(pw => !pw.rendered && !pw.found); if (nextWord) { nextWord.rendered = true; const ul = document.getElementById('word-list'); const newLi = document.createElement('li'); newLi.textContent = nextWord.word; newLi.id = 'word-' + nextWord.word; newLi.style.animation = "fadeIn 0.5s"; ul.appendChild(newLi); } } }
+function levelComplete() { stopTimer(); const titleEl = document.getElementById('level-complete-title'); const btnNext = document.getElementById('btn-next'); const finalForm = document.getElementById('final-form'); if(currentLevelIndex === gameLevels.length - 1) { titleEl.textContent = "¡INCREIBLE! Has completado el juego."; btnNext.classList.add('hidden'); finalForm.classList.remove('hidden'); } else { titleEl.textContent = "¡Nivel Completado!"; btnNext.classList.remove('hidden'); finalForm.classList.add('hidden'); } showScreen('level-complete-screen'); playTone(400, 'triangle', 0.1); setTimeout(() => playTone(500, 'triangle', 0.1), 100); setTimeout(() => playTone(600, 'triangle', 0.2), 200); }
+function nextLevelWithAnimation() { const btn = document.getElementById('btn-next'); if(btn.classList.contains('filling')) return; btn.classList.add('filling'); setTimeout(() => { btn.classList.remove('filling'); currentLevelIndex++; showScreen('game-screen'); initLevel(); }, 1500); }
+function solveLevel() { placedWords.forEach(pw => { if(!pw.found) { pw.found = true; markWordFound(pw.coords, pw.word); } }); setTimeout(levelComplete, 500); }
+async function saveScore() { const name = document.getElementById('player-name-input').value.trim() || "Anónimo"; const btnSave = document.getElementById('btn-save'); btnSave.classList.add('btn-loading'); let savedToCloud = false; if (db && user) { try { await addDoc(collection(db, 'scores'), { name: name, time: totalSeconds, date: new Date().toISOString(), uid: user.uid }); savedToCloud = true; } catch (e) { console.warn(e); } } if (!savedToCloud) { try { const localData = JSON.parse(localStorage.getItem('sopa_scores') || '[]'); localData.push({ name: name, time: totalSeconds, date: new Date().toISOString(), source: 'local' }); localStorage.setItem('sopa_scores', JSON.stringify(localData)); } catch(e) { console.error(e); } } goToMenu(); setTimeout(() => btnSave.classList.remove('btn-loading'), 500); }
+async function showScoreboard() { showScreen('scoreboard-screen'); const list = document.getElementById('score-list'); list.innerHTML = '<li class="score-item">Cargando...</li>'; let scores = []; if (db) { try { const querySnapshot = await getDocs(collection(db, 'scores')); querySnapshot.forEach(doc => scores.push(doc.data())); } catch (e) { console.warn(e); } } try { const localData = JSON.parse(localStorage.getItem('sopa_scores') || '[]'); scores = [...scores, ...localData]; } catch(e) {} scores.sort((a, b) => a.time - b.time); scores = scores.slice(0, 3); list.innerHTML = ''; if (scores.length === 0) list.innerHTML = '<li class="score-item">Aún no hay récords</li>'; else { scores.forEach((s, index) => { const mins = Math.floor(s.time / 60).toString().padStart(2, '0'); const secs = (s.time % 60).toString().padStart(2, '0'); const li = document.createElement('li'); li.className = 'score-item'; let rankIcon = index === 0 ? '🥇' : (index === 1 ? '🥈' : '🥉'); li.innerHTML = `<span class="score-rank">${rankIcon}</span><span class="score-name">${s.name}</span><span class="score-time">${mins}:${secs}</span>`; list.appendChild(li); }); } }
