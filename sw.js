@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sopa-letras-v2';
+const CACHE_NAME = 'sopa-letras-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -6,7 +6,8 @@ const ASSETS_TO_CACHE = [
   './funcionalidad.js',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './palabras.json'
 ];
 
 // 1. INSTALACIÓN: Guardamos los archivos estáticos

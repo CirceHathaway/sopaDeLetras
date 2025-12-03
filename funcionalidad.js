@@ -22,6 +22,23 @@ try {
     signInAnonymously(auth).then(u => user = u.user).catch(console.error);
 } catch (e) { console.error(e); }
 
+// VARIABLE PARA GUARDAR EL DICCIONARIO
+let wordDictionary = null;
+
+// FUNCIÓN PARA CARGAR EL JSON
+async function loadDictionary() {
+    try {
+        const response = await fetch('./palabras.json');
+        const data = await response.json();
+        wordDictionary = data.palabras;
+        console.log("Diccionario cargado correctamente");
+    } catch (e) {
+        console.error("No se pudo cargar palabras.json", e);
+    }
+}
+// Llamamos a la carga apenas inicia el script
+loadDictionary();
+
 // Globales
 window.showModeSelection = showModeSelection;
 window.startMode = startMode;
@@ -68,17 +85,18 @@ function stopBackgroundAnimation() {
 }
 startBackgroundAnimation();
 
+// Ahora "count" define cuántas palabras sacar al azar
 const gameLevels = [
-    { level: 1, size: 8, words: ["SOL", "LUNA", "MAR", "GATO", "PERRO"] },
-    { level: 2, size: 9, words: ["MESA", "SILLA", "LAPIZ", "LIBRO", "PAPEL", "CASA"] },
-    { level: 3, size: 10, words: ["AMIGO", "FELIZ", "JUGAR", "COMER", "REIR", "SUEÑO", "SALTAR"] },
-    { level: 4, size: 11, words: ["BOSQUE", "PLAYA", "MONTAÑA", "CIELO", "TIERRA", "AGUA", "FUEGO", "VIENTO"] },
-    { level: 5, size: 12, words: ["PLANETA", "ESTRELLA", "GALAXIA", "COMETA", "ORBITA", "LUNAR", "SOLAR", "ESPACIO", "COSMOS"] },
-    { level: 6, size: 13, words: ["CIENCIA", "FISICA", "QUIMICA", "LOGICA", "TEORIA", "ATOMO", "CELULA", "MATERIA", "ENERGIA", "NEURONA"] },
-    { level: 7, size: 14, words: ["LIBERTAD", "JUSTICIA", "VALOR", "RESPETO", "HONOR", "VERDAD", "MORAL", "ETICA", "DERECHO", "DEBER", "PAZ"] },
-    { level: 8, size: 15, words: ["COMPUTADORA", "ALGORITMO", "INTERNET", "PANTALLA", "TECLADO", "MEMORIA", "SOFTWARE", "HARDWARE", "REDES", "DATOS", "CODIGO", "PIXEL"] },
-    { level: 9, size: 16, words: ["FILOSOFIA", "LITERATURA", "HISTORIA", "GEOGRAFIA", "BIOLOGIA", "MATEMATICA", "ARTE", "MUSICA", "PINTURA", "ESCULTURA", "POESIA", "NOVELA", "TEATRO"] },
-    { level: 10, size: 17, words: ["EFIMERO", "INEFABLE", "RESILIENCIA", "SEMPITERNO", "ELOCUENCIA", "MELANCOLIA", "SERENDIPIA", "ETEREO", "LIMERENCIA", "ARREBOL", "EPOCA", "SONETO", "ASTRAL", "ETERNO"] }
+    { level: 1, size: 8,  difficulty: 'facil', count: 5 },
+    { level: 2, size: 9,  difficulty: 'facil', count: 6 },
+    { level: 3, size: 10, difficulty: 'facil', count: 7 },
+    { level: 4, size: 11, difficulty: 'medio', count: 8 },
+    { level: 5, size: 12, difficulty: 'medio', count: 9 },
+    { level: 6, size: 13, difficulty: 'medio', count: 10 },
+    { level: 7, size: 14, difficulty: 'medio', count: 10 },
+    { level: 8, size: 15, difficulty: 'dificil', count: 12 },
+    { level: 9, size: 16, difficulty: 'dificil', count: 13 },
+    { level: 10, size: 17, difficulty: 'dificil', count: 14 }
 ];
 
 let currentGameMode = 'traditional'; 
@@ -139,9 +157,33 @@ function confirmExit() { document.getElementById('confirm-modal').classList.remo
 function closeConfirm() { document.getElementById('confirm-modal').classList.add('hidden'); }
 
 function initLevel() {
+    // Si el diccionario no cargó aún, esperamos un poco o reintentamos
+    if (!wordDictionary) {
+        setTimeout(initLevel, 200);
+        return;
+    }
+
     const levelData = gameLevels[currentLevelIndex];
     
-    // --- DIMENSIONES FIJAS SEGÚN DISPOSITIVO ---
+    // --- SELECCIÓN ALEATORIA DE PALABRAS ---
+    // Obtenemos todas las palabras de la dificultad del nivel
+    const pool = wordDictionary[levelData.difficulty];
+    
+    // Mezclamos el array (Algoritmo Fisher-Yates para mezcla real)
+    const shuffled = [...pool]; // Copia para no romper el original
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    
+    // Cortamos las primeras X palabras según pida el nivel
+    const selectedWords = shuffled.slice(0, levelData.count);
+
+    // Guardamos las palabras en el objeto del nivel actual para que el resto del juego las use
+    // NOTA: Creamos una propiedad temporal 'currentWords' para no ensuciar la lógica
+    const wordsToPlay = selectedWords; 
+
+    // --- DIMENSIONES FIJAS (Igual que antes) ---
     if (isMobile()) {
         currentRows = 14; currentCols = 10;
     } else if (isTablet()) {
@@ -155,8 +197,10 @@ function initLevel() {
     document.getElementById('status-msg').textContent = "Encuentra las palabras";
     
     stopTimer();
+    
+    // Usamos wordsToPlay.length para calcular el tiempo
     if (currentGameMode === 'elimination') {
-        levelSeconds = levelData.words.length * 12; 
+        levelSeconds = wordsToPlay.length * 12; 
         updateTimerDisplay();
         timerInterval = setInterval(() => {
             levelSeconds--;
@@ -178,11 +222,15 @@ function initLevel() {
 
     let success = false;
     let attempts = 0;
+    
+    // Bucle para intentar colocar las palabras
     while(!success && attempts < 50) {
         grid = Array(currentRows).fill(null).map(() => Array(currentCols).fill(''));
         placedWords = [];
         success = true;
-        for (let word of levelData.words) {
+        
+        // Iteramos sobre las palabras seleccionadas al azar
+        for (let word of wordsToPlay) {
             if (!placeWord(word, currentRows, currentCols)) {
                 success = false; break;
             }
@@ -192,7 +240,6 @@ function initLevel() {
 
     fillEmptySpaces(currentRows, currentCols);
     
-    // Timeout para asegurar que el CSS (media queries) se haya aplicado antes de medir
     setTimeout(() => {
         renderGrid(currentRows, currentCols);
     }, 50);
@@ -336,7 +383,33 @@ function updateDragVisuals(start, end) { const allSelected = document.querySelec
 function clearSelectionVisuals() { document.querySelectorAll('.cell.selected').forEach(el => el.classList.remove('selected')); }
 function checkWordAttempt(start, end) { const dRow = end.r - start.r; const dCol = end.c - start.c; if (dRow !== 0 && dCol !== 0 && Math.abs(dRow) !== Math.abs(dCol)) return; const steps = Math.max(Math.abs(dRow), Math.abs(dCol)); const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow); const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol); let formedWord = ""; let currR = start.r; let currC = start.c; for (let i = 0; i <= steps; i++) { formedWord += grid[currR][currC]; currR += stepR; currC += stepC; } const reversedWord = formedWord.split('').reverse().join(''); const foundObj = placedWords.find(pw => (pw.word === formedWord || pw.word === reversedWord) && !pw.found); if (foundObj) { foundObj.found = true; markWordFound(foundObj.coords, foundObj.word); document.getElementById('status-msg').textContent = `¡${foundObj.word} encontrada!`; playTone(440, 'sine', 0.1); setTimeout(() => playTone(660, 'sine', 0.15), 100); if (currentGameMode === 'elimination') { levelSeconds += 5; updateTimerDisplay(); } if (placedWords.every(pw => pw.found)) setTimeout(levelComplete, 800); } }
 function markWordFound(coords, wordText) { coords.forEach((coord, index) => { const cell = document.querySelector(`.cell[data-r='${coord.r}'][data-c='${coord.c}']`); if(cell) setTimeout(() => cell.classList.add('found'), index * 40); }); const li = document.getElementById('word-' + wordText); if (li) { li.remove(); const nextWord = placedWords.find(pw => !pw.rendered && !pw.found); if (nextWord) { nextWord.rendered = true; const ul = document.getElementById('word-list'); const newLi = document.createElement('li'); newLi.textContent = nextWord.word; newLi.id = 'word-' + nextWord.word; newLi.style.animation = "fadeIn 0.5s"; ul.appendChild(newLi); } } }
-function levelComplete() { stopTimer(); const titleEl = document.getElementById('level-complete-title'); const btnNext = document.getElementById('btn-next'); const finalForm = document.getElementById('final-form'); if(currentLevelIndex === gameLevels.length - 1) { titleEl.textContent = "¡INCREIBLE! Has completado el juego."; btnNext.classList.add('hidden'); finalForm.classList.remove('hidden'); } else { titleEl.textContent = "¡Nivel Completado!"; btnNext.classList.remove('hidden'); finalForm.classList.add('hidden'); } showScreen('level-complete-screen'); playTone(400, 'triangle', 0.1); setTimeout(() => playTone(500, 'triangle', 0.1), 100); setTimeout(() => playTone(600, 'triangle', 0.2), 200); }
+function levelComplete() {
+    stopTimer();
+    
+    // CAMBIO: Usamos la nueva función de fichas
+    const containerId = 'level-complete-title-container';
+    
+    const btnNext = document.getElementById('btn-next');
+    const finalForm = document.getElementById('final-form');
+
+    if(currentLevelIndex === gameLevels.length - 1) {
+        // Texto final
+        renderTitleTiles(containerId, "JUEGO COMPLETADO");
+        btnNext.classList.add('hidden');
+        finalForm.classList.remove('hidden');
+    } else {
+        // Texto nivel normal
+        renderTitleTiles(containerId, "NIVEL COMPLETADO");
+        btnNext.classList.remove('hidden');
+        finalForm.classList.add('hidden');
+    }
+    
+    showScreen('level-complete-screen');
+    // ... (el resto de los sonidos sigue igual)
+    playTone(400, 'triangle', 0.1);
+    setTimeout(() => playTone(500, 'triangle', 0.1), 100);
+    setTimeout(() => playTone(600, 'triangle', 0.2), 200);
+}
 function nextLevelWithAnimation() { const btn = document.getElementById('btn-next'); if(btn.classList.contains('filling')) return; btn.classList.add('filling'); setTimeout(() => { btn.classList.remove('filling'); currentLevelIndex++; showScreen('game-screen'); initLevel(); }, 1500); }
 async function saveScore() { const name = document.getElementById('player-name-input').value.trim() || "Anónimo"; const btnSave = document.getElementById('btn-save'); btnSave.classList.add('btn-loading'); let savedToCloud = false; if (db && user) { try { await addDoc(collection(db, 'scores'), { name: name, time: totalSeconds, date: new Date().toISOString(), uid: user.uid }); savedToCloud = true; } catch (e) { console.warn(e); } } if (!savedToCloud) { try { const localData = JSON.parse(localStorage.getItem('sopa_scores') || '[]'); localData.push({ name: name, time: totalSeconds, date: new Date().toISOString(), source: 'local' }); localStorage.setItem('sopa_scores', JSON.stringify(localData)); } catch(e) { console.error(e); } } goToMenu(); setTimeout(() => btnSave.classList.remove('btn-loading'), 500); }
 async function showScoreboard() { showScreen('scoreboard-screen'); const list = document.getElementById('score-list'); list.innerHTML = '<li class="score-item">Cargando...</li>'; let scores = []; if (db) { try { const querySnapshot = await getDocs(collection(db, 'scores')); querySnapshot.forEach(doc => scores.push(doc.data())); } catch (e) { console.warn(e); } } try { const localData = JSON.parse(localStorage.getItem('sopa_scores') || '[]'); scores = [...scores, ...localData]; } catch(e) {} scores.sort((a, b) => a.time - b.time); scores = scores.slice(0, 3); list.innerHTML = ''; if (scores.length === 0) list.innerHTML = '<li class="score-item">Aún no hay récords</li>'; else { scores.forEach((s, index) => { const mins = Math.floor(s.time / 60).toString().padStart(2, '0'); const secs = (s.time % 60).toString().padStart(2, '0'); const li = document.createElement('li'); li.className = 'score-item'; let rankIcon = index === 0 ? '🥇' : (index === 1 ? '🥈' : '🥉'); li.innerHTML = `<span class="score-rank">${rankIcon}</span><span class="score-name">${s.name}</span><span class="score-time">${mins}:${secs}</span>`; list.appendChild(li); }); } }
@@ -397,3 +470,25 @@ window.addEventListener('appinstalled', () => {
     deferredPrompt = null;
     console.log('PWA was installed');
 });
+
+// Función para dibujar texto con fichas estáticas
+function renderTitleTiles(containerId, text) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = ''; // Limpiar anterior
+    
+    const words = text.split(' '); // Separar por palabras
+    
+    // Crear una fila por cada palabra (o agrupar si son cortas)
+    words.forEach(word => {
+        const row = document.createElement('div');
+        row.className = 'title-row';
+        
+        for (let char of word) {
+            const tile = document.createElement('div');
+            tile.className = 'title-tile static';
+            tile.textContent = char;
+            row.appendChild(tile);
+        }
+        container.appendChild(row);
+    });
+}

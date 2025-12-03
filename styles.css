@@ -68,6 +68,19 @@ h1, h2 { text-align: center; text-shadow: 0 10px 20px rgba(0,0,0,0.2); font-weig
 .mode-btn.elimination { border: 2px solid var(--danger-color); }
 .mode-btn.elimination .mode-title { color: var(--danger-color); }
 
+/* --- ESTILO PARA TÍTULOS ESTÁTICOS (SIN ANIMACIÓN) --- */
+.title-tile.static {
+    animation: none !important; /* Anula la animación de caída */
+    opacity: 1 !important;      /* Siempre visible */
+    transform: none !important; /* En su posición original */
+    
+    /* Hacemos las fichas de subtítulos un poco más chicas para que entren */
+    width: 35px;
+    height: 35px;
+    font-size: 20px;
+    margin: 2px;
+}
+
 /* --- JUEGO UI --- */
 #game-screen { justify-content: flex-start; padding-bottom: 0; box-sizing: border-box; }
 
@@ -385,4 +398,10 @@ h1, h2 { text-align: center; text-shadow: 0 10px 20px rgba(0,0,0,0.2); font-weig
     
     /* Botón Siguiente Nivel más abajo */
     #level-complete-screen .btn-start { margin-top: 50px; }
+
+    .title-tile.static {
+        width: 28px;
+        height: 28px;
+        font-size: 16px;
+    }
 }

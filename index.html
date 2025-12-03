@@ -56,7 +56,27 @@
 
     <!-- SELECCIÓN DE MODO -->
     <div id="mode-screen" class="hidden">
-        <h2>Elige tu desafío</h2>
+        <div class="title-container">
+            <div class="title-row">
+                <div class="title-tile static">E</div>
+                <div class="title-tile static">L</div>
+                <div class="title-tile static">I</div>
+                <div class="title-tile static">G</div>
+                <div class="title-tile static">E</div>
+            </div>
+            <div class="title-row">
+                <div class="title-tile static">T</div>
+                <div class="title-tile static">U</div>
+                <div class="title-spacer"></div>
+                <div class="title-tile static">D</div>
+                <div class="title-tile static">E</div>
+                <div class="title-tile static">S</div>
+                <div class="title-tile static">A</div>
+                <div class="title-tile static">F</div>
+                <div class="title-tile static">Í</div>
+                <div class="title-tile static">O</div>
+            </div>
+        </div>
         <div style="display: flex; flex-direction: column; gap: 20px; align-items: center;">
             <div class="mode-btn" onclick="startMode('traditional')">
                 <span class="mode-title">Tradicional 🧘</span>
@@ -72,7 +92,17 @@
 
     <!-- PANTALLA SCOREBOARD -->
     <div id="scoreboard-screen" class="hidden">
-        <h2 style="font-size: 3rem; color: #ffd700; margin-bottom: 20px;">Mejores Tiempos</h2>
+        <div class="title-container" style="margin-bottom: 20px;">
+            <div class="title-row">
+                <div class="title-tile static">R</div>
+                <div class="title-tile static">É</div>
+                <div class="title-tile static">C</div>
+                <div class="title-tile static">O</div>
+                <div class="title-tile static">R</div>
+                <div class="title-tile static">D</div>
+                <div class="title-tile static">S</div>
+            </div>
+        </div>
         <ul id="score-list" class="score-list">
             <li class="score-item">Cargando...</li>
         </ul>
@@ -116,7 +146,20 @@
 
     <!-- GAME OVER SCREEN (SOLO ELIMINACIÓN) -->
     <div id="game-over-screen" class="hidden">
-        <h2>¡Tiempo Agotado!</h2>
+        <div class="title-container">
+            <div class="title-row">
+                <div class="title-tile static">G</div>
+                <div class="title-tile static">A</div>
+                <div class="title-tile static">M</div>
+                <div class="title-tile static">E</div>
+            </div>
+            <div class="title-row">
+                <div class="title-tile static">O</div>
+                <div class="title-tile static">V</div>
+                <div class="title-tile static">E</div>
+                <div class="title-tile static">R</div>
+            </div>
+        </div>
         <!-- Contenedor centrado para los botones -->
         <div id="revive-container">
             <p style="margin-bottom: 10px; font-size: 1.1rem; opacity: 0.9;">¿Quieres una segunda oportunidad?</p>
@@ -128,7 +171,7 @@
 
     <!-- PANTALLA NIVEL COMPLETADO / FINAL -->
     <div id="level-complete-screen" class="hidden">
-        <h2 id="level-complete-title">¡Nivel Completado!</h2>
+        <div id="level-complete-title-container" class="title-container" style="margin-bottom: 20px;"></div>
         <div id="level-stats">Tiempo Total: 00:00</div>
         
         <button id="btn-next" class="btn-start" onclick="nextLevelWithAnimation()">
