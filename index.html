@@ -6,6 +6,9 @@
     <title>Sopa de Letras - Desafío Mental</title>
     <!-- Enlace a los estilos CSS -->
     <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#764ba2">
+    <link rel="apple-touch-icon" href="icon-192.png">
 </head>
 <body>
 
@@ -140,6 +143,16 @@
             </button>
         </div>
     </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('Service Worker registrado', reg))
+                .catch(err => console.error('Error al registrar SW', err));
+            });
+        }
+    </script>
 
     <!-- Enlace al archivo de lógica JavaScript -->
     <script type="module" src="funcionalidad.js"></script>
