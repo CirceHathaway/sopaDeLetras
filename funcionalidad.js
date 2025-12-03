@@ -147,24 +147,30 @@ function playTone(freq, type, duration, vol = 0.05) {
     osc.stop(audioCtx.currentTime + duration);
 }
 
-function showModeSelection() { showScreen('mode-screen'); }
+function showModeSelection() { 
+    showScreen('mode-screen'); 
+}
+
 function startMode(mode) { 
     currentGameMode = mode; 
-    currentLevelIndex = 0; 
     totalSeconds = 0; 
     hasRevived = false; 
 
     // --- NUEVO: REINICIAMOS LA MEMORIA DE PALABRAS ---
-    // Al empezar un juego nuevo, borramos el historial para que 
-    // todas las palabras vuelvan a estar disponibles desde cero.
     localStorage.removeItem('sopa_used_words');
+
+    // --- LÓGICA MODO SAO ---
+    if (currentGameMode === 'sao') {
+        // Intentamos recuperar el nivel guardado (por defecto nivel 1, que es índice 0)
+        const savedLevel = localStorage.getItem('sopa_sao_level');
+        currentLevelIndex = savedLevel ? parseInt(savedLevel) : 0;
+    } else {
+        currentLevelIndex = 0; 
+    }
 
     showScreen('game-screen'); 
     
-    // OPTIMIZACIÓN: Detener animación en móvil al jugar
     if (isMobile()) stopBackgroundAnimation(); 
-
-    // OPTIMIZACIÓN: Detener animación en  al jugar
     if (isTablet()) stopBackgroundAnimation(); 
     
     initLevel(); 
@@ -183,45 +189,53 @@ function confirmExit() { document.getElementById('confirm-modal').classList.remo
 function closeConfirm() { document.getElementById('confirm-modal').classList.add('hidden'); }
 
 function initLevel() {
-    // Si el diccionario no cargó aún, esperamos
-    if (!wordDictionary) {
-        setTimeout(initLevel, 200);
-        return;
+    if (!wordDictionary) { setTimeout(initLevel, 200); return; }
+
+    let levelData;
+    let difficulty;
+
+    // --- LÓGICA DIFERENCIADA PARA SAO ---
+    if (currentGameMode === 'sao') {
+        difficulty = getSaoDifficulty(currentLevelIndex);
+        levelData = {
+            level: currentLevelIndex + 1,
+            difficulty: difficulty,
+            count: 14 // SIEMPRE 14 palabras
+        };
+        // Ocultar timer en modo SAO
+        document.getElementById('timer').style.visibility = 'hidden';
+        document.getElementById('level-indicator').textContent = `Piso ${levelData.level}/100`;
+    } else {
+        // Lógica normal
+        levelData = gameLevels[currentLevelIndex];
+        difficulty = levelData.difficulty;
+        document.getElementById('timer').style.visibility = 'visible';
+        document.getElementById('level-indicator').textContent = `Nivel ${levelData.level}/10`;
     }
 
-    const levelData = gameLevels[currentLevelIndex];
     currentColorIndex = 0; 
 
-    // --- LÓGICA ANTI-REPETICIÓN ---
+    // --- LÓGICA ANTI-REPETICIÓN (Igual que antes) ---
     let usedWordsHistory = [];
-    try {
-        usedWordsHistory = JSON.parse(localStorage.getItem('sopa_used_words')) || [];
-    } catch (e) { console.warn(e); }
+    try { usedWordsHistory = JSON.parse(localStorage.getItem('sopa_used_words')) || []; } catch (e) {}
 
-    const fullPool = wordDictionary[levelData.difficulty];
+    const fullPool = wordDictionary[difficulty]; // Usamos la dificultad calculada
     let availableWords = fullPool.filter(word => !usedWordsHistory.includes(word));
 
     if (availableWords.length < levelData.count) {
-        console.log(`Reiniciando historial de palabras para nivel ${levelData.difficulty}`);
         usedWordsHistory = usedWordsHistory.filter(w => !fullPool.includes(w));
         availableWords = [...fullPool];
     }
 
-    // Mezclar palabras
     const shuffled = [...availableWords];
     for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     
-    // Seleccionar cantidad necesaria
     let selectedWords = shuffled.slice(0, levelData.count);
-
-    // --- CORRECCIÓN 1: ORDENAR POR LONGITUD ---
-    // Intentamos colocar primero las palabras largas. Esto reduce drásticamente los fallos.
     selectedWords.sort((a, b) => b.length - a.length);
 
-    // Guardamos en historial (solo las que intentaremos poner)
     const updatedHistory = [...usedWordsHistory, ...selectedWords];
     localStorage.setItem('sopa_used_words', JSON.stringify(updatedHistory));
 
@@ -231,66 +245,66 @@ function initLevel() {
     } else if (isTablet()) {
         currentRows = 16; currentCols = 15;
     } else {
-        currentCols = levelData.size;
-        currentRows = (levelData.level >= 5) ? 11 : levelData.size;
+        if (currentGameMode === 'sao') {
+            // ESCRITORIO SAO: Fijo como el nivel 10
+            currentCols = 17;
+            currentRows = 11; 
+        } else {
+            // ESCRITORIO NORMAL
+            currentCols = levelData.size;
+            currentRows = (levelData.level >= 5) ? 11 : levelData.size;
+        }
     }
     
-    document.getElementById('level-indicator').textContent = `Nivel ${levelData.level}/10`;
     document.getElementById('status-msg').textContent = "Encuentra las palabras";
     
     stopTimer();
 
-    // --- GENERACIÓN DE GRILLA ---
+    // --- GENERACIÓN DE GRILLA (Igual que antes) ---
     placedWords = [];
     firstSelection = null;
     isDragging = false;
-
     let success = false;
     let attempts = 0;
     
-    // --- CORRECCIÓN 2: MÁS INTENTOS (200) ---
     while(!success && attempts < 200) {
         grid = Array(currentRows).fill(null).map(() => Array(currentCols).fill(''));
-        placedWords = []; // Reiniciamos lista interna
+        placedWords = [];
         success = true;
-        
         for (let word of selectedWords) {
             if (!placeWord(word, currentRows, currentCols)) {
-                success = false; 
-                break; // Si falla una, reiniciamos todo el tablero
+                success = false; break;
             }
         }
         attempts++;
     }
 
-    // --- CORRECCIÓN 3: SINCRONIZACIÓN FINAL ---
-    // Si después de 200 intentos no entraron todas, usamos SOLO las que sí entraron.
-    // Esto evita errores visuales o de lógica.
+    // --- SINCRONIZACIÓN Y TIMERS ---
     const finalWordCount = placedWords.length;
     
-    // Recalculamos el tiempo basado en las palabras que REALMENTE están en el tablero
-    if (currentGameMode === 'elimination') {
-        levelSeconds = finalWordCount * 12; 
-        updateTimerDisplay();
-        timerInterval = setInterval(() => {
-            levelSeconds--;
-            totalSeconds++; 
+    // En SAO no iniciamos timer, pero en los otros sí
+    if (currentGameMode !== 'sao') {
+        if (currentGameMode === 'elimination') {
+            levelSeconds = finalWordCount * 12; 
             updateTimerDisplay();
-            if (levelSeconds <= 0) gameOver();
-        }, 1000);
+            timerInterval = setInterval(() => {
+                levelSeconds--; totalSeconds++; updateTimerDisplay();
+                if (levelSeconds <= 0) gameOver();
+            }, 1000);
+        } else {
+            updateTimerDisplay();
+            timerInterval = setInterval(() => {
+                totalSeconds++; updateTimerDisplay();
+            }, 1000);
+        }
     } else {
-        updateTimerDisplay();
-        timerInterval = setInterval(() => {
-            totalSeconds++;
-            updateTimerDisplay();
-        }, 1000);
+        // En SAO solo limpiamos el texto del timer por si acaso
+        document.getElementById('timer').textContent = "∞";
+        document.getElementById('timer').style.visibility = 'visible'; // Lo mostramos como infinito
     }
 
     fillEmptySpaces(currentRows, currentCols);
-    
-    setTimeout(() => {
-        renderGrid(currentRows, currentCols);
-    }, 50);
+    setTimeout(() => { renderGrid(currentRows, currentCols); }, 50);
     
     const limit = getMaxVisibleWords();
     placedWords.forEach((pw, i) => pw.rendered = i < limit);
@@ -404,6 +418,13 @@ function renderGrid(rows, cols) {
     const wrapper = document.querySelector('.grid-wrapper');
     const rect = wrapper.getBoundingClientRect();
     
+    // --- CAMBIO 1: APLICAR CLASE GIGANTE SI ES SAO ---
+    if (currentGameMode === 'sao' && !isMobile() && !isTablet()) {
+        wrapper.classList.add('sao-large');
+    } else {
+        wrapper.classList.remove('sao-large');
+    }
+    
     // Medir tamaño real disponible
     let wAvailable = rect.width || (window.innerWidth - 10);
     let hAvailable = rect.height || (window.innerHeight - 200);
@@ -411,7 +432,7 @@ function renderGrid(rows, cols) {
     let cellSize, gap;
 
     if (isMobile() || isTablet()) {
-        // Móvil/Tableta: Fit ajustado
+        // Móvil/Tableta: Fit ajustado (Igual que antes)
         gap = 1; 
         const w = (wAvailable - (cols - 1) * gap) / cols;
         const h = (hAvailable - (rows - 1) * gap) / rows;
@@ -423,14 +444,25 @@ function renderGrid(rows, cols) {
     } else {
         // Escritorio
         gap = 5;
-        const availableVmin = 65; 
-        const divisor = rows; 
-        cellSize = `calc((${availableVmin}vmin - ${divisor * gap}px) / ${divisor})`;
+        
+        if (currentGameMode === 'sao') {
+            // --- LÓGICA MODO SAO (AUTO-AJUSTE VERTICAL) ---
+            // Calculamos: (Altura total de pantalla - 280px de interfaz) / cantidad de filas
+            // Esto asegura que NUNCA se salga de la pantalla verticalmente.
+            cellSize = `calc((100vh - 280px) / ${rows})`;
+        } else {
+            // --- LÓGICA MODO NORMAL (VMIN) ---
+            const availableVmin = 65; 
+            const divisor = rows; 
+            cellSize = `calc((${availableVmin}vmin - ${divisor * gap}px) / ${divisor})`;
+        }
+
         gridEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize})`;
         gridEl.style.gridTemplateRows = `repeat(${rows}, ${cellSize})`;
         gridEl.style.gap = `${gap}px`;
     }
     
+    // ... (El resto de la función sigue igual: eventos touch, mouse, bucles for) ...
     window.removeEventListener('touchend', handleGlobalMouseUp);
     window.addEventListener('touchend', handleGlobalMouseUp);
     window.addEventListener('mouseup', handleGlobalMouseUp);
@@ -450,6 +482,7 @@ function renderGrid(rows, cols) {
             } else {
                 cell.style.width = '';
                 cell.style.height = '';
+                // Ajustamos ligeramente la fuente también
                 cell.style.fontSize = `calc(${cellSize} * 0.55)`;
             }
             
@@ -541,34 +574,94 @@ function markWordFound(coords, wordText) {
         }
     }
 }
+
 function levelComplete() {
     stopTimer();
     
-    // CAMBIO: Usamos la nueva función de fichas
     const containerId = 'level-complete-title-container';
-    
     const btnNext = document.getElementById('btn-next');
     const finalForm = document.getElementById('final-form');
 
-    if(currentLevelIndex === gameLevels.length - 1) {
-        // Texto final
-        renderTitleTiles(containerId, "JUEGO COMPLETADO");
-        btnNext.classList.add('hidden');
-        finalForm.classList.remove('hidden');
+    // Lógica específica MODO SAO
+    if (currentGameMode === 'sao') {
+        // Guardamos el progreso del SIGUIENTE nivel
+        const nextLevel = currentLevelIndex + 1; // Índice + 1 = siguiente índice
+        
+        if (nextLevel >= 100) {
+            // --- JUEGO TERMINADO (NIVEL 100 SUPERADO) ---
+            renderTitleTiles(containerId, "¡CIMA CONQUISTADA!");
+            btnNext.classList.add('hidden');
+            
+            // Creamos un botón especial para volver al menú y resetear
+            finalForm.classList.remove('hidden');
+            finalForm.innerHTML = `
+                <p style="text-align:center;">Has completado los 100 pisos.</p>
+                <button class="btn-start" onclick="resetSaoAndExit()">
+                    <span class="btn-text">Volver al Menú</span>
+                </button>
+            `;
+            // Borramos progreso para que pueda jugar de nuevo
+            localStorage.removeItem('sopa_sao_level'); 
+        } else {
+            // --- NIVEL INTERMEDIO COMPLETADO ---
+            renderTitleTiles(containerId, "PISO COMPLETADO");
+            btnNext.classList.remove('hidden');
+            finalForm.classList.add('hidden');
+            
+            // Guardamos que el usuario ya está en el siguiente nivel (índice)
+            localStorage.setItem('sopa_sao_level', nextLevel);
+        }
+
     } else {
-        // Texto nivel normal
-        renderTitleTiles(containerId, "NIVEL COMPLETADO");
-        btnNext.classList.remove('hidden');
-        finalForm.classList.add('hidden');
+        // --- LÓGICA MODOS NORMALES (La que ya tenías) ---
+        if(currentLevelIndex === gameLevels.length - 1) {
+            renderTitleTiles(containerId, "JUEGO COMPLETADO");
+            btnNext.classList.add('hidden');
+            finalForm.classList.remove('hidden');
+            // Restauramos el formulario original si fue modificado por SAO
+            if(!document.getElementById('player-name-input')) {
+                finalForm.innerHTML = `
+                    <input type="text" id="player-name-input" placeholder="Tu Nombre (Máx 14)" maxlength="14">
+                    <button id="btn-save" class="btn-start" onclick="saveScore()">
+                        <span class="btn-text">Guardar</span>
+                    </button>
+                `;
+            }
+        } else {
+            renderTitleTiles(containerId, "NIVEL COMPLETADO");
+            btnNext.classList.remove('hidden');
+            finalForm.classList.add('hidden');
+        }
     }
     
     showScreen('level-complete-screen');
-    // ... (el resto de los sonidos sigue igual)
     playTone(400, 'triangle', 0.1);
     setTimeout(() => playTone(500, 'triangle', 0.1), 100);
     setTimeout(() => playTone(600, 'triangle', 0.2), 200);
 }
-function nextLevelWithAnimation() { const btn = document.getElementById('btn-next'); if(btn.classList.contains('filling')) return; btn.classList.add('filling'); setTimeout(() => { btn.classList.remove('filling'); currentLevelIndex++; showScreen('game-screen'); initLevel(); }, 1500); }
+
+function nextLevelWithAnimation() { 
+    const btn = document.getElementById('btn-next'); 
+    if(btn.classList.contains('filling')) return; 
+    
+    btn.classList.add('filling'); 
+    
+    setTimeout(() => { 
+        btn.classList.remove('filling'); 
+        currentLevelIndex++; 
+        
+        // Verificación de seguridad
+        if (currentGameMode !== 'sao' && currentLevelIndex >= gameLevels.length) {
+            // Esto no debería pasar por la lógica de levelComplete, pero por seguridad:
+            goToMenu();
+            return;
+        }
+
+        showScreen('game-screen'); 
+        initLevel(); 
+    }, 1500); 
+}
+
 async function saveScore() { const name = document.getElementById('player-name-input').value.trim() || "Anónimo"; const btnSave = document.getElementById('btn-save'); btnSave.classList.add('btn-loading'); let savedToCloud = false; if (db && user) { try { await addDoc(collection(db, 'scores'), { name: name, time: totalSeconds, date: new Date().toISOString(), uid: user.uid }); savedToCloud = true; } catch (e) { console.warn(e); } } if (!savedToCloud) { try { const localData = JSON.parse(localStorage.getItem('sopa_scores') || '[]'); localData.push({ name: name, time: totalSeconds, date: new Date().toISOString(), source: 'local' }); localStorage.setItem('sopa_scores', JSON.stringify(localData)); } catch(e) { console.error(e); } } goToMenu(); setTimeout(() => btnSave.classList.remove('btn-loading'), 500); }
 async function showScoreboard() { showScreen('scoreboard-screen'); const list = document.getElementById('score-list'); list.innerHTML = '<li class="score-item">Cargando...</li>'; let scores = []; if (db) { try { const querySnapshot = await getDocs(collection(db, 'scores')); querySnapshot.forEach(doc => scores.push(doc.data())); } catch (e) { console.warn(e); } } try { const localData = JSON.parse(localStorage.getItem('sopa_scores') || '[]'); scores = [...scores, ...localData]; } catch(e) {} scores.sort((a, b) => a.time - b.time); scores = scores.slice(0, 3); list.innerHTML = ''; if (scores.length === 0) list.innerHTML = '<li class="score-item">Aún no hay récords</li>'; else { scores.forEach((s, index) => { const mins = Math.floor(s.time / 60).toString().padStart(2, '0'); const secs = (s.time % 60).toString().padStart(2, '0'); const li = document.createElement('li'); li.className = 'score-item'; let rankIcon = index === 0 ? '🥇' : (index === 1 ? '🥈' : '🥉'); li.innerHTML = `<span class="score-rank">${rankIcon}</span><span class="score-name">${s.name}</span><span class="score-time">${mins}:${secs}</span>`; list.appendChild(li); }); } }
 async function shareGame() {
@@ -670,3 +763,25 @@ function renderTitleTiles(containerId, text) {
         container.appendChild(row);
     });
 }
+
+function getSaoDifficulty(levelIndex) {
+    // levelIndex 0 = Nivel 1.
+    const realLevel = levelIndex + 1;
+    if (realLevel <= 25) return 'facil';
+    if (realLevel <= 65) return 'medio';
+    return 'dificil';
+}
+
+//Cuando terminas el nivel 100
+window.resetSaoAndExit = function() {
+    localStorage.removeItem('sopa_sao_level');
+    goToMenu();
+    // Restauramos el formulario del DOM por si el usuario juega modo normal después
+    const finalForm = document.getElementById('final-form');
+    finalForm.innerHTML = `
+        <input type="text" id="player-name-input" placeholder="Tu Nombre (Máx 14)" maxlength="14">
+        <button id="btn-save" class="btn-start" onclick="saveScore()">
+            <span class="btn-text">Guardar</span>
+        </button>
+    `;
+};

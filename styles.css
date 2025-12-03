@@ -66,6 +66,10 @@ h1, h2 { text-align: center; text-shadow: 0 10px 20px rgba(0,0,0,0.2); font-weig
 .mode-btn.elimination { border: 2px solid var(--danger-color); }
 .mode-btn.elimination .mode-title { color: var(--danger-color); }
 
+/* Modo SAO */
+.mode-btn.sao-mode { border: 2px solid #333; }
+.mode-btn.sao-mode .mode-title { color: #333; }
+
 /* --- ESTILO PARA TÍTULOS ESTÁTICOS (SIN ANIMACIÓN) --- */
 .title-tile.static {
     animation: none !important; /* Anula la animación de caída */
@@ -510,4 +514,29 @@ h1, h2 { text-align: center; text-shadow: 0 10px 20px rgba(0,0,0,0.2); font-weig
         height: 28px;
         font-size: 16px;
     }
+}
+
+/* --- ESTILO ESPECÍFICO PARA MODO SAO EN PC --- */
+.grid-wrapper.sao-large {
+    height: auto;
+    max-height: none;
+    
+    width: auto;       /* Dejamos que se ajuste */
+    max-width: 98vw;   /* Evitamos que se salga de la pantalla */
+    
+    /* AQUÍ ESTÁ EL CAMBIO: */
+    /* 0px arriba/abajo, 80px izquierda/derecha */
+    padding: 0 60px;   
+    
+    margin: 0 auto;
+    
+    /* Vuelvo a poner un poco de borde y radio para que se vea bien el gris extra */
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 20px; 
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
