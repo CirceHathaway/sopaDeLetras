@@ -115,7 +115,7 @@ let hasRevived = false;
 
 // COLORES PARA REMARCAR LAS PALABRAS:
 const highlightColors = [
-    "#8f0101ff", // Rojo suave
+    "#ff8000ff", // 
     "#4ECDC4", // Turquesa
     "#FBC531", // Amarillo mostaza
     "#9B59B6", // Violeta
@@ -153,6 +153,12 @@ function startMode(mode) {
     currentLevelIndex = 0; 
     totalSeconds = 0; 
     hasRevived = false; 
+
+    // --- NUEVO: REINICIAMOS LA MEMORIA DE PALABRAS ---
+    // Al empezar un juego nuevo, borramos el historial para que 
+    // todas las palabras vuelvan a estar disponibles desde cero.
+    localStorage.removeItem('sopa_used_words');
+
     showScreen('game-screen'); 
     
     // OPTIMIZACIÓN: Detener animación en móvil al jugar
@@ -177,34 +183,58 @@ function confirmExit() { document.getElementById('confirm-modal').classList.remo
 function closeConfirm() { document.getElementById('confirm-modal').classList.add('hidden'); }
 
 function initLevel() {
-    // Si el diccionario no cargó aún, esperamos un poco o reintentamos
+    // Si el diccionario no cargó aún, esperamos
     if (!wordDictionary) {
         setTimeout(initLevel, 200);
         return;
     }
 
     const levelData = gameLevels[currentLevelIndex];
-    currentColorIndex = 0;
+    currentColorIndex = 0; // Reiniciar colores
+
+    // --- LÓGICA ANTI-REPETICIÓN ---
+    // 1. Cargamos el historial de palabras ya jugadas
+    let usedWordsHistory = [];
+    try {
+        usedWordsHistory = JSON.parse(localStorage.getItem('sopa_used_words')) || [];
+    } catch (e) { console.warn(e); }
+
+    // 2. Obtenemos todas las palabras posibles para esta dificultad
+    const fullPool = wordDictionary[levelData.difficulty];
     
-    // --- SELECCIÓN ALEATORIA DE PALABRAS ---
-    // Obtenemos todas las palabras de la dificultad del nivel
-    const pool = wordDictionary[levelData.difficulty];
-    
-    // Mezclamos el array (Algoritmo Fisher-Yates para mezcla real)
-    const shuffled = [...pool]; // Copia para no romper el original
+    // 3. Filtramos: Nos quedamos solo con las que NO están en el historial
+    let availableWords = fullPool.filter(word => !usedWordsHistory.includes(word));
+
+    // 4. Verificación de seguridad:
+    // Si nos quedan menos palabras de las necesarias para el nivel, ¡reiniciamos!
+    // (Significa que el jugador ya vio todas las palabras de esta dificultad)
+    if (availableWords.length < levelData.count) {
+        console.log(`¡Se acabaron las palabras de nivel ${levelData.difficulty}! Reiniciando memoria...`);
+        
+        // Quitamos del historial las palabras de esta dificultad para que vuelvan a salir
+        usedWordsHistory = usedWordsHistory.filter(w => !fullPool.includes(w));
+        
+        // Ahora todas están disponibles de nuevo
+        availableWords = [...fullPool];
+    }
+
+    // 5. Mezclamos las palabras disponibles
+    const shuffled = [...availableWords];
     for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     
-    // Cortamos las primeras X palabras según pida el nivel
+    // 6. Seleccionamos las necesarias para este nivel
     const selectedWords = shuffled.slice(0, levelData.count);
 
-    // Guardamos las palabras en el objeto del nivel actual para que el resto del juego las use
-    // NOTA: Creamos una propiedad temporal 'currentWords' para no ensuciar la lógica
-    const wordsToPlay = selectedWords; 
+    // 7. Guardamos estas nuevas palabras en el historial para no repetirlas la próxima
+    const updatedHistory = [...usedWordsHistory, ...selectedWords];
+    localStorage.setItem('sopa_used_words', JSON.stringify(updatedHistory));
 
-    // --- DIMENSIONES FIJAS (Igual que antes) ---
+    const wordsToPlay = selectedWords;
+
+    // --- CONFIGURACIÓN DE GRILLA Y TIEMPO (Igual que antes) ---
     if (isMobile()) {
         currentRows = 14; currentCols = 10;
     } else if (isTablet()) {
@@ -218,8 +248,6 @@ function initLevel() {
     document.getElementById('status-msg').textContent = "Encuentra las palabras";
     
     stopTimer();
-    
-    // Usamos wordsToPlay.length para calcular el tiempo
     if (currentGameMode === 'elimination') {
         levelSeconds = wordsToPlay.length * 12; 
         updateTimerDisplay();
@@ -244,14 +272,13 @@ function initLevel() {
     let success = false;
     let attempts = 0;
     
-    // Bucle para intentar colocar las palabras
+    // Intentar colocar palabras (con tu lógica de dificultad ya integrada)
     while(!success && attempts < 50) {
         grid = Array(currentRows).fill(null).map(() => Array(currentCols).fill(''));
         placedWords = [];
         success = true;
-        
-        // Iteramos sobre las palabras seleccionadas al azar
         for (let word of wordsToPlay) {
+            // Nota: placeWord ya usa la lógica de direcciones que hicimos antes
             if (!placeWord(word, currentRows, currentCols)) {
                 success = false; break;
             }
@@ -291,8 +318,82 @@ function updateTimerDisplay() {
 
 function gameOver() { stopTimer(); const reviveContainer = document.getElementById('revive-container'); if (!hasRevived) reviveContainer.style.display = 'flex'; else { reviveContainer.style.display = 'none'; document.querySelector('#game-over-screen h2').textContent = "Game Over"; } showScreen('game-over-screen'); playTone(150, 'sawtooth', 0.5); }
 function revivePlayer() { hasRevived = true; levelSeconds += 30; showScreen('game-screen'); timerInterval = setInterval(() => { levelSeconds--; totalSeconds++; updateTimerDisplay(); if (levelSeconds <= 0) gameOver(); }, 1000); }
-function placeWord(word, rows, cols) { let placed = false; let attempts = 0; while (!placed && attempts < 100) { const dir = Math.floor(Math.random() * 3); const row = Math.floor(Math.random() * rows); const col = Math.floor(Math.random() * cols); if (canPlace(word, row, col, dir, rows, cols)) { let coords = []; for (let i = 0; i < word.length; i++) { let r, c; if (dir === 0) { r = row; c = col + i; } else if (dir === 1) { r = row + i; c = col; } else if (dir === 2) { r = row + i; c = col + i; } grid[r][c] = word[i]; coords.push({ r, c }); } placedWords.push({ word: word, found: false, coords: coords, rendered: false }); placed = true; } attempts++; } return placed; }
-function canPlace(word, row, col, dir, rows, cols) { if (dir === 0 && col + word.length > cols) return false; if (dir === 1 && row + word.length > rows) return false; if (dir === 2 && (row + word.length > rows || col + word.length > cols)) return false; for (let i = 0; i < word.length; i++) { let existing; if (dir === 0) existing = grid[row][col + i]; else if (dir === 1) existing = grid[row + i][col]; else if (dir === 2) existing = grid[row + i][col + i]; if (existing !== '' && existing !== word[i]) return false; } return true; }
+function placeWord(word, rows, cols) {
+    let placed = false;
+    let attempts = 0;
+    
+    // Obtenemos la dificultad del nivel actual
+    const difficulty = gameLevels[currentLevelIndex].difficulty;
+
+    // DEFINIMOS LAS DIRECCIONES (Cambio en fila, Cambio en columna)
+    // 0: Horizontal (→) | 1: Vertical (↓) | 2: Diagonal (↘)
+    let allowedDirections = [
+        { dr: 0, dc: 1 },  // Horizontal Derecha
+        { dr: 1, dc: 0 },  // Vertical Abajo
+        { dr: 1, dc: 1 },   // Diagonal Abajo-Derecha
+        { dr: -1, dc: 1 } // Diagonal Arriba-Derecha
+    ];
+
+    // Si NO es fácil, agregamos las direcciones invertidas (←, ↑, ↖, etc.)
+    if (difficulty !== 'facil') {
+        allowedDirections.push(
+            { dr: -1, dc: 0 }, // Vertical Arriba (Rev)
+            { dr: -1, dc: -1 },// Diagonal Arriba-Izquierda (Rev)
+            { dr: -1, dc: 1 }, // Diagonal Arriba-Derecha
+            { dr: 1, dc: -1 }  // Diagonal Abajo-Izquierda
+        );
+    }
+
+    while (!placed && attempts < 150) { // Aumentamos un poco los intentos
+        const row = Math.floor(Math.random() * rows);
+        const col = Math.floor(Math.random() * cols);
+        
+        // Elegimos una dirección al azar de las permitidas
+        const dirObj = allowedDirections[Math.floor(Math.random() * allowedDirections.length)];
+
+        if (canPlace(word, row, col, dirObj, rows, cols)) {
+            let coords = [];
+            for (let i = 0; i < word.length; i++) {
+                // Calculamos la posición exacta usando la dirección
+                const r = row + (i * dirObj.dr);
+                const c = col + (i * dirObj.dc);
+                
+                grid[r][c] = word[i];
+                coords.push({ r, c });
+            }
+            // Guardamos la palabra. 'found: false'
+            placedWords.push({ word: word, found: false, coords: coords, rendered: false });
+            placed = true;
+        }
+        attempts++;
+    }
+    return placed;
+}
+
+function canPlace(word, startRow, startCol, dir, rows, cols) {
+    // 1. Calculamos dónde terminaría la palabra
+    const endRow = startRow + (word.length - 1) * dir.dr;
+    const endCol = startCol + (word.length - 1) * dir.dc;
+
+    // 2. Verificar si se sale de los bordes
+    if (endRow < 0 || endRow >= rows || endCol < 0 || endCol >= cols) {
+        return false;
+    }
+
+    // 3. Verificar si choca con letras diferentes
+    for (let i = 0; i < word.length; i++) {
+        const r = startRow + (i * dir.dr);
+        const c = startCol + (i * dir.dc);
+        
+        const existing = grid[r][c];
+        // Si la celda no está vacía Y la letra no coincide, no se puede poner
+        if (existing !== '' && existing !== word[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 function fillEmptySpaces(rows, cols) { const letters = "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ"; for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { if (grid[r][c] === '') grid[r][c] = letters.charAt(Math.floor(Math.random() * letters.length)); } } }
 
 // --- RENDERIZADO ---
