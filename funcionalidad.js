@@ -39,29 +39,14 @@ function isMobile() { return window.innerWidth < 600; }
 function isTablet() { return window.innerWidth >= 600 && window.innerWidth <= 1024; }
 
 function getMaxVisibleWords() {
-    if (isMobile()) return 4;
-    if (isTablet()) return 4; // Tablet también 4 palabras según pedido
+    if (isMobile() || isTablet()) return 4;
     return 11; 
 }
 
-function getGridDimensions(levelData) {
-    if (isMobile()) {
-        return { rows: 14, cols: 10 }; // Fijo Celular
-    } else if (isTablet()) {
-        return { rows: 16, cols: 15 }; // Fijo Tablet
-    } else {
-        // Escritorio: Variable según nivel
-        return { 
-            cols: levelData.size, 
-            rows: (levelData.level >= 5) ? 11 : levelData.size 
-        };
-    }
-}
-
-// --- ANIMACIÓN FONDO ---
 let animInterval;
 function startBackgroundAnimation() {
     const container = document.getElementById('background-animation');
+    if (!container) return;
     container.innerHTML = ''; 
     const createLetter = () => {
         const letter = document.createElement('div');
@@ -78,11 +63,11 @@ function startBackgroundAnimation() {
 }
 function stopBackgroundAnimation() {
     clearInterval(animInterval);
-    document.getElementById('background-animation').innerHTML = '';
+    const container = document.getElementById('background-animation');
+    if (container) container.innerHTML = '';
 }
 startBackgroundAnimation();
 
-// --- NIVELES ---
 const gameLevels = [
     { level: 1, size: 8, words: ["SOL", "LUNA", "MAR", "GATO", "PERRO"] },
     { level: 2, size: 9, words: ["MESA", "SILLA", "LAPIZ", "LIBRO", "PAPEL", "CASA"] },
@@ -125,8 +110,27 @@ function playTone(freq, type, duration, vol = 0.05) {
 }
 
 function showModeSelection() { showScreen('mode-screen'); }
-function startMode(mode) { currentGameMode = mode; currentLevelIndex = 0; totalSeconds = 0; hasRevived = false; showScreen('game-screen'); stopBackgroundAnimation(); initLevel(); }
-function goToMenu() { stopTimer(); document.getElementById('confirm-modal').classList.add('hidden'); showScreen('menu-screen'); startBackgroundAnimation(); }
+function startMode(mode) { 
+    currentGameMode = mode; 
+    currentLevelIndex = 0; 
+    totalSeconds = 0; 
+    hasRevived = false; 
+    showScreen('game-screen'); 
+    
+    // OPTIMIZACIÓN: Detener animación en móvil al jugar
+    if (isMobile()) stopBackgroundAnimation(); 
+    
+    initLevel(); 
+}
+
+function goToMenu() { 
+    stopTimer(); 
+    document.getElementById('confirm-modal').classList.add('hidden'); 
+    showScreen('menu-screen'); 
+    // Reactivar animación
+    startBackgroundAnimation(); 
+}
+
 function showScreen(id) { document.querySelectorAll('body > div[id$="-screen"]').forEach(div => div.classList.add('hidden')); document.getElementById(id).classList.remove('hidden'); }
 function confirmExit() { document.getElementById('confirm-modal').classList.remove('hidden'); }
 function closeConfirm() { document.getElementById('confirm-modal').classList.add('hidden'); }
@@ -134,10 +138,15 @@ function closeConfirm() { document.getElementById('confirm-modal').classList.add
 function initLevel() {
     const levelData = gameLevels[currentLevelIndex];
     
-    // Determinar dimensiones según dispositivo
-    const dims = getGridDimensions(levelData);
-    currentRows = dims.rows;
-    currentCols = dims.cols;
+    // --- DIMENSIONES FIJAS SEGÚN DISPOSITIVO ---
+    if (isMobile()) {
+        currentRows = 14; currentCols = 10;
+    } else if (isTablet()) {
+        currentRows = 16; currentCols = 15;
+    } else {
+        currentCols = levelData.size;
+        currentRows = (levelData.level >= 5) ? 11 : levelData.size;
+    }
     
     document.getElementById('level-indicator').textContent = `Nivel ${levelData.level}/10`;
     document.getElementById('status-msg').textContent = "Encuentra las palabras";
@@ -180,8 +189,7 @@ function initLevel() {
 
     fillEmptySpaces(currentRows, currentCols);
     
-    // Renderizado con cálculo de tamaño exacto
-    // Timeout para asegurar que el CSS ha aplicado el layout flex
+    // Timeout para asegurar que el CSS (media queries) se haya aplicado antes de medir
     setTimeout(() => {
         renderGrid(currentRows, currentCols);
     }, 50);
@@ -216,7 +224,7 @@ function placeWord(word, rows, cols) { let placed = false; let attempts = 0; whi
 function canPlace(word, row, col, dir, rows, cols) { if (dir === 0 && col + word.length > cols) return false; if (dir === 1 && row + word.length > rows) return false; if (dir === 2 && (row + word.length > rows || col + word.length > cols)) return false; for (let i = 0; i < word.length; i++) { let existing; if (dir === 0) existing = grid[row][col + i]; else if (dir === 1) existing = grid[row + i][col]; else if (dir === 2) existing = grid[row + i][col + i]; if (existing !== '' && existing !== word[i]) return false; } return true; }
 function fillEmptySpaces(rows, cols) { const letters = "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ"; for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { if (grid[r][c] === '') grid[r][c] = letters.charAt(Math.floor(Math.random() * letters.length)); } } }
 
-// --- RENDERIZADO RESPONSIVE ---
+// --- RENDERIZADO ---
 function renderGrid(rows, cols) {
     const gridEl = document.getElementById('grid');
     gridEl.innerHTML = '';
@@ -224,40 +232,34 @@ function renderGrid(rows, cols) {
     const wrapper = document.querySelector('.grid-wrapper');
     const rect = wrapper.getBoundingClientRect();
     
-    // Medimos espacio disponible REAL
-    // Fallback si es 0 (inicio)
-    let wAvailable = rect.width || window.innerWidth;
+    // Medir tamaño real disponible
+    let wAvailable = rect.width || (window.innerWidth - 10);
     let hAvailable = rect.height || (window.innerHeight - 200);
 
-    let gap, cellSize;
+    let cellSize, gap;
 
     if (isMobile() || isTablet()) {
-        // Lógica Móvil/Tablet: Llenar espacio con padding mínimo
+        // Móvil/Tableta: Fit ajustado
         gap = 1; 
         const w = (wAvailable - (cols - 1) * gap) / cols;
         const h = (hAvailable - (rows - 1) * gap) / rows;
         cellSize = Math.floor(Math.min(w, h));
-    } else {
-        // Lógica Escritorio (vmin original)
-        gap = 5;
-        const availableVmin = 65; 
-        const divisor = rows; 
-        cellSize = `calc((${availableVmin}vmin - ${divisor * gap}px) / ${divisor})`;
-        // En escritorio grid-template-columns usa esta calc directamente
-    }
-
-    // Aplicar estilos
-    if (isMobile() || isTablet()) {
+        
         gridEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
         gridEl.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
         gridEl.style.gap = `${gap}px`;
     } else {
+        // Escritorio
+        gap = 5;
+        const availableVmin = 65; 
+        const divisor = rows; 
+        cellSize = `calc((${availableVmin}vmin - ${divisor * gap}px) / ${divisor})`;
         gridEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize})`;
         gridEl.style.gridTemplateRows = `repeat(${rows}, ${cellSize})`;
         gridEl.style.gap = `${gap}px`;
     }
-
-    window.removeEventListener('touchend', handleGlobalMouseUp); // Limpiar
+    
+    window.removeEventListener('touchend', handleGlobalMouseUp);
     window.addEventListener('touchend', handleGlobalMouseUp);
     window.addEventListener('mouseup', handleGlobalMouseUp);
 
