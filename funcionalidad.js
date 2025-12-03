@@ -433,42 +433,62 @@ async function shareGame() {
     }
 }
 
-// --- LÓGICA DE INSTALACIÓN (PWA) ---
-let deferredPrompt; // Guardará el evento de instalación nativo
+// --- LÓGICA DE INSTALACIÓN Y NAVEGACIÓN ---
+let deferredPrompt; // Variable para guardar el evento de instalación
 
+// 1. Detectar si se puede instalar
 window.addEventListener('beforeinstallprompt', (e) => {
-    // 1. Evita que Chrome muestre su barra de instalación automática
     e.preventDefault();
-    // 2. Guarda el evento para dispararlo cuando queramos
-    deferredPrompt = e;
-    // 3. Muestra nuestro modal personalizado
-    document.getElementById('install-modal').classList.remove('hidden');
+    deferredPrompt = e; // Guardamos el evento para usarlo luego
+    
+    // Si justo estamos viendo el menú al cargar, mostramos el aviso
+    const menu = document.getElementById('menu-screen');
+    if (!menu.classList.contains('hidden')) {
+        document.getElementById('install-modal').classList.remove('hidden');
+    }
 });
 
-// Función global para el botón "Instalar"
-window.installApp = async () => {
-    if (!deferredPrompt) return;
-    // Ocultar modal
-    document.getElementById('install-modal').classList.add('hidden');
-    // Mostrar prompt nativo del sistema
-    deferredPrompt.prompt();
-    // Esperar elección del usuario
-    const { outcome } = await deferredPrompt.userChoice;
-    console.log(`User response to the install prompt: ${outcome}`);
-    // Ya no podemos usar el prompt de nuevo
-    deferredPrompt = null;
+// 2. MODIFICAMOS LA FUNCIÓN showScreen (El cerebro de la navegación)
+window.showScreen = function(id) {
+    // A. Ocultar todas las pantallas (Menu, Juego, Score, Modos, etc.)
+    document.querySelectorAll('body > div[id$="-screen"]').forEach(div => div.classList.add('hidden')); 
+    
+    // B. Mostrar la pantalla que pidió el usuario
+    document.getElementById(id).classList.remove('hidden');
+
+    // C. CONTROL DEL AVISO DE INSTALACIÓN (Aquí está la magia)
+    const installModal = document.getElementById('install-modal');
+    
+    if (id === 'menu-screen') {
+        // ¿Estamos en el Menú Principal?
+        // SI -> Mostramos el aviso solo si la app se puede instalar (deferredPrompt existe)
+        if (deferredPrompt) {
+            installModal.classList.remove('hidden');
+        }
+    } else {
+        // ¿Estamos en Jugar, Modos, Score o cualquier otro lado?
+        // NO -> Ocultamos el aviso obligatoriamente
+        installModal.classList.add('hidden');
+    }
 };
 
-// Función global para "Ahora no"
+// 3. Funciones de los botones del modal
+window.installApp = async () => {
+    if (!deferredPrompt) return;
+    document.getElementById('install-modal').classList.add('hidden');
+    deferredPrompt.prompt(); // Lanza la ventana nativa de Android/iOS
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`Usuario decidió: ${outcome}`);
+    deferredPrompt = null; // Ya no se puede instalar de nuevo inmediatamente
+};
+
 window.closeInstallModal = () => {
     document.getElementById('install-modal').classList.add('hidden');
 };
 
-// Detectar si ya está instalada para no mostrar nada
 window.addEventListener('appinstalled', () => {
     document.getElementById('install-modal').classList.add('hidden');
     deferredPrompt = null;
-    console.log('PWA was installed');
 });
 
 // Función para dibujar texto con fichas estáticas

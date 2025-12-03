@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sopa-letras-v3';
+const CACHE_NAME = 'sopa-letras-v5';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -12,6 +12,9 @@ const ASSETS_TO_CACHE = [
 
 // 1. INSTALACIÓN: Guardamos los archivos estáticos
 self.addEventListener('install', (e) => {
+  // Esta línea fuerza al SW nuevo a activarse rápido
+  self.skipWaiting();
+
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE);
