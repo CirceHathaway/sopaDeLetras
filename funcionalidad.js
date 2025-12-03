@@ -99,6 +99,7 @@ const gameLevels = [
     { level: 10, size: 17, difficulty: 'dificil', count: 14 }
 ];
 
+// --- VARIABLES GLOBALES ---
 let currentGameMode = 'traditional'; 
 let currentLevelIndex = 0;
 let grid = [];
@@ -111,6 +112,25 @@ let currentRows = 0;
 let currentCols = 0;
 let isDragging = false;
 let hasRevived = false; 
+
+// COLORES PARA REMARCAR LAS PALABRAS:
+const highlightColors = [
+    "#8f0101ff", // Rojo suave
+    "#4ECDC4", // Turquesa
+    "#FBC531", // Amarillo mostaza
+    "#9B59B6", // Violeta
+    "#E84393", // Rosa fuerte
+    "#00a8ff", // Azul cielo
+    "#e1b12c", // Naranja
+    "#4cd137",  // Verde lima
+    "#f1a2d7ff",
+    "#2532a4ff",
+    "#68f5aeff",
+    "#b4ff06ff",
+    "#ffd500ff",
+    "#623c03ff",
+];
+let currentColorIndex = 0;
 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playTone(freq, type, duration, vol = 0.05) {
@@ -164,6 +184,7 @@ function initLevel() {
     }
 
     const levelData = gameLevels[currentLevelIndex];
+    currentColorIndex = 0;
     
     // --- SELECCIÓN ALEATORIA DE PALABRAS ---
     // Obtenemos todas las palabras de la dificultad del nivel
@@ -382,7 +403,43 @@ function handleGlobalMouseUp(e) {
 function updateDragVisuals(start, end) { const allSelected = document.querySelectorAll('.cell.selected'); allSelected.forEach(el => { const r = parseInt(el.dataset.r); const c = parseInt(el.dataset.c); if (r !== start.r || c !== start.c) el.classList.remove('selected'); }); const dRow = end.r - start.r; const dCol = end.c - start.c; if (dRow === 0 || dCol === 0 || Math.abs(dRow) === Math.abs(dCol)) { const steps = Math.max(Math.abs(dRow), Math.abs(dCol)); const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow); const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol); let r = start.r; let c = start.c; for(let i=0; i<=steps; i++) { const cell = document.querySelector(`.cell[data-r='${r}'][data-c='${c}']`); if (cell) cell.classList.add('selected'); r += stepR; c += stepC; } } }
 function clearSelectionVisuals() { document.querySelectorAll('.cell.selected').forEach(el => el.classList.remove('selected')); }
 function checkWordAttempt(start, end) { const dRow = end.r - start.r; const dCol = end.c - start.c; if (dRow !== 0 && dCol !== 0 && Math.abs(dRow) !== Math.abs(dCol)) return; const steps = Math.max(Math.abs(dRow), Math.abs(dCol)); const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow); const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol); let formedWord = ""; let currR = start.r; let currC = start.c; for (let i = 0; i <= steps; i++) { formedWord += grid[currR][currC]; currR += stepR; currC += stepC; } const reversedWord = formedWord.split('').reverse().join(''); const foundObj = placedWords.find(pw => (pw.word === formedWord || pw.word === reversedWord) && !pw.found); if (foundObj) { foundObj.found = true; markWordFound(foundObj.coords, foundObj.word); document.getElementById('status-msg').textContent = `¡${foundObj.word} encontrada!`; playTone(440, 'sine', 0.1); setTimeout(() => playTone(660, 'sine', 0.15), 100); if (currentGameMode === 'elimination') { levelSeconds += 5; updateTimerDisplay(); } if (placedWords.every(pw => pw.found)) setTimeout(levelComplete, 800); } }
-function markWordFound(coords, wordText) { coords.forEach((coord, index) => { const cell = document.querySelector(`.cell[data-r='${coord.r}'][data-c='${coord.c}']`); if(cell) setTimeout(() => cell.classList.add('found'), index * 40); }); const li = document.getElementById('word-' + wordText); if (li) { li.remove(); const nextWord = placedWords.find(pw => !pw.rendered && !pw.found); if (nextWord) { nextWord.rendered = true; const ul = document.getElementById('word-list'); const newLi = document.createElement('li'); newLi.textContent = nextWord.word; newLi.id = 'word-' + nextWord.word; newLi.style.animation = "fadeIn 0.5s"; ul.appendChild(newLi); } } }
+function markWordFound(coords, wordText) {
+    // 1. Elegimos el color actual y avanzamos el índice (circularmente)
+    const color = highlightColors[currentColorIndex % highlightColors.length];
+    currentColorIndex++;
+
+    coords.forEach((coord, index) => {
+        const cell = document.querySelector(`.cell[data-r='${coord.r}'][data-c='${coord.c}']`);
+        if (cell) {
+            // Animación secuencial
+            setTimeout(() => {
+                cell.classList.add('found');
+                // APLICAMOS EL COLOR DIRECTAMENTE
+                cell.style.backgroundColor = color;
+                // Nos aseguramos que el texto sea blanco para contraste
+                cell.style.color = 'white'; 
+                // Un pequeño borde sombra para que se vea bonito
+                cell.style.boxShadow = "inset 0 0 10px rgba(0,0,0,0.2)";
+            }, index * 40);
+        }
+    });
+
+    // Lógica para quitar la palabra de la lista (esto sigue igual que antes)
+    const li = document.getElementById('word-' + wordText);
+    if (li) {
+        li.remove();
+        const nextWord = placedWords.find(pw => !pw.rendered && !pw.found);
+        if (nextWord) {
+            nextWord.rendered = true;
+            const ul = document.getElementById('word-list');
+            const newLi = document.createElement('li');
+            newLi.textContent = nextWord.word;
+            newLi.id = 'word-' + nextWord.word;
+            newLi.style.animation = "fadeIn 0.5s";
+            ul.appendChild(newLi);
+        }
+    }
+}
 function levelComplete() {
     stopTimer();
     
