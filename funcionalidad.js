@@ -30,8 +30,7 @@ window.nextLevelWithAnimation = nextLevelWithAnimation;
 window.confirmExit = confirmExit;
 window.closeConfirm = closeConfirm;
 window.saveScore = saveScore;
-window.showScoreboard = showScoreboard;
-window.solveLevel = solveLevel; 
+window.showScoreboard = showScoreboard; 
 window.revivePlayer = revivePlayer;
 window.shareGame = shareGame;
 
@@ -339,7 +338,6 @@ function checkWordAttempt(start, end) { const dRow = end.r - start.r; const dCol
 function markWordFound(coords, wordText) { coords.forEach((coord, index) => { const cell = document.querySelector(`.cell[data-r='${coord.r}'][data-c='${coord.c}']`); if(cell) setTimeout(() => cell.classList.add('found'), index * 40); }); const li = document.getElementById('word-' + wordText); if (li) { li.remove(); const nextWord = placedWords.find(pw => !pw.rendered && !pw.found); if (nextWord) { nextWord.rendered = true; const ul = document.getElementById('word-list'); const newLi = document.createElement('li'); newLi.textContent = nextWord.word; newLi.id = 'word-' + nextWord.word; newLi.style.animation = "fadeIn 0.5s"; ul.appendChild(newLi); } } }
 function levelComplete() { stopTimer(); const titleEl = document.getElementById('level-complete-title'); const btnNext = document.getElementById('btn-next'); const finalForm = document.getElementById('final-form'); if(currentLevelIndex === gameLevels.length - 1) { titleEl.textContent = "¡INCREIBLE! Has completado el juego."; btnNext.classList.add('hidden'); finalForm.classList.remove('hidden'); } else { titleEl.textContent = "¡Nivel Completado!"; btnNext.classList.remove('hidden'); finalForm.classList.add('hidden'); } showScreen('level-complete-screen'); playTone(400, 'triangle', 0.1); setTimeout(() => playTone(500, 'triangle', 0.1), 100); setTimeout(() => playTone(600, 'triangle', 0.2), 200); }
 function nextLevelWithAnimation() { const btn = document.getElementById('btn-next'); if(btn.classList.contains('filling')) return; btn.classList.add('filling'); setTimeout(() => { btn.classList.remove('filling'); currentLevelIndex++; showScreen('game-screen'); initLevel(); }, 1500); }
-function solveLevel() { placedWords.forEach(pw => { if(!pw.found) { pw.found = true; markWordFound(pw.coords, pw.word); } }); setTimeout(levelComplete, 500); }
 async function saveScore() { const name = document.getElementById('player-name-input').value.trim() || "Anónimo"; const btnSave = document.getElementById('btn-save'); btnSave.classList.add('btn-loading'); let savedToCloud = false; if (db && user) { try { await addDoc(collection(db, 'scores'), { name: name, time: totalSeconds, date: new Date().toISOString(), uid: user.uid }); savedToCloud = true; } catch (e) { console.warn(e); } } if (!savedToCloud) { try { const localData = JSON.parse(localStorage.getItem('sopa_scores') || '[]'); localData.push({ name: name, time: totalSeconds, date: new Date().toISOString(), source: 'local' }); localStorage.setItem('sopa_scores', JSON.stringify(localData)); } catch(e) { console.error(e); } } goToMenu(); setTimeout(() => btnSave.classList.remove('btn-loading'), 500); }
 async function showScoreboard() { showScreen('scoreboard-screen'); const list = document.getElementById('score-list'); list.innerHTML = '<li class="score-item">Cargando...</li>'; let scores = []; if (db) { try { const querySnapshot = await getDocs(collection(db, 'scores')); querySnapshot.forEach(doc => scores.push(doc.data())); } catch (e) { console.warn(e); } } try { const localData = JSON.parse(localStorage.getItem('sopa_scores') || '[]'); scores = [...scores, ...localData]; } catch(e) {} scores.sort((a, b) => a.time - b.time); scores = scores.slice(0, 3); list.innerHTML = ''; if (scores.length === 0) list.innerHTML = '<li class="score-item">Aún no hay récords</li>'; else { scores.forEach((s, index) => { const mins = Math.floor(s.time / 60).toString().padStart(2, '0'); const secs = (s.time % 60).toString().padStart(2, '0'); const li = document.createElement('li'); li.className = 'score-item'; let rankIcon = index === 0 ? '🥇' : (index === 1 ? '🥈' : '🥉'); li.innerHTML = `<span class="score-rank">${rankIcon}</span><span class="score-name">${s.name}</span><span class="score-time">${mins}:${secs}</span>`; list.appendChild(li); }); } }
 async function shareGame() {
@@ -361,3 +359,41 @@ async function shareGame() {
         console.error('Error al compartir:', err);
     }
 }
+
+// --- LÓGICA DE INSTALACIÓN (PWA) ---
+let deferredPrompt; // Guardará el evento de instalación nativo
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    // 1. Evita que Chrome muestre su barra de instalación automática
+    e.preventDefault();
+    // 2. Guarda el evento para dispararlo cuando queramos
+    deferredPrompt = e;
+    // 3. Muestra nuestro modal personalizado
+    document.getElementById('install-modal').classList.remove('hidden');
+});
+
+// Función global para el botón "Instalar"
+window.installApp = async () => {
+    if (!deferredPrompt) return;
+    // Ocultar modal
+    document.getElementById('install-modal').classList.add('hidden');
+    // Mostrar prompt nativo del sistema
+    deferredPrompt.prompt();
+    // Esperar elección del usuario
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response to the install prompt: ${outcome}`);
+    // Ya no podemos usar el prompt de nuevo
+    deferredPrompt = null;
+};
+
+// Función global para "Ahora no"
+window.closeInstallModal = () => {
+    document.getElementById('install-modal').classList.add('hidden');
+};
+
+// Detectar si ya está instalada para no mostrar nada
+window.addEventListener('appinstalled', () => {
+    document.getElementById('install-modal').classList.add('hidden');
+    deferredPrompt = null;
+    console.log('PWA was installed');
+});

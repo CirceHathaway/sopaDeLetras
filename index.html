@@ -82,7 +82,6 @@
     <!-- PANTALLA DE JUEGO -->
     <div id="game-screen" class="hidden">
         <button class="menu-btn" onclick="confirmExit()">Menú</button>
-        <button class="debug-btn" onclick="solveLevel()">⚡</button>
 
         <div class="info-bar">
             <div class="info-pill" id="level-indicator">Nivel 1</div>
@@ -141,6 +140,19 @@
             <button id="btn-save" class="btn-start" onclick="saveScore()">
                 <span class="btn-text">Guardar</span>
             </button>
+        </div>
+    </div>
+
+    <!-- INSTALAR JUEGO -->
+    <div id="install-modal" class="hidden">
+        <div class="modal-content">
+            <span class="thinking-emoji">📲</span>
+            <h3>¡Instala la App!</h3>
+            <p>Juega sin internet y a pantalla completa para una mejor experiencia.</p>
+            <div class="modal-buttons">
+                <button class="modal-btn btn-yes" onclick="installApp()">Instalar</button>
+                <button class="modal-btn btn-no" onclick="closeInstallModal()">Ahora no</button>
+            </div>
         </div>
     </div>
 

@@ -90,12 +90,6 @@ h1, h2 { text-align: center; text-shadow: 0 10px 20px rgba(0,0,0,0.2); font-weig
 }
 .menu-btn:hover { transform: scale(1.05); background: #2d3748; }
 
-.debug-btn {
-    position: absolute; top: 15px; right: 15px;
-    background: #e53e3e; border: 2px solid white; color: white; padding: 8px 12px; font-size: 1.2rem; border-radius: 12px; cursor: pointer; z-index: 100; box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-}
-.debug-btn:hover { background: #c53030; }
-
 .info-bar {
     display: flex; justify-content: center; gap: 20px; width: auto;
     padding: 0 10px; box-sizing: border-box; flex-shrink: 0;
@@ -247,10 +241,6 @@ h1, h2 { text-align: center; text-shadow: 0 10px 20px rgba(0,0,0,0.2); font-weig
         left: 20px; top: 15px; 
         z-index: 200;
     }
-    .debug-btn {
-        top: 15px; right: 20px;
-        z-index: 200;
-    }
     
     /* Grid ocupa espacio, cerca de bordes */
     .grid-wrapper {
@@ -277,6 +267,33 @@ h1, h2 { text-align: center; text-shadow: 0 10px 20px rgba(0,0,0,0.2); font-weig
     .info-bar {
         margin-top: 25px; /* Bajamos la barra en tabletas */
     }
+
+    /* AJUSTES SCOREBOARD */
+    #scoreboard-screen {
+        justify-content: center; /* Asegura centrado vertical */
+    }
+
+    /* Centrar la lista y limitar ancho */
+    .score-list {
+        width: 90%; 
+        max-width: 350px;
+        margin: 20px auto; /* Auto a los lados centra el bloque */
+        padding: 0;
+    }
+
+    /* Botón Volver del Scoreboard más grande y centrado */
+    #scoreboard-screen .menu-btn {
+        position: static; /* Quitamos posición absoluta para que fluya debajo de la lista */
+        margin-top: 20px;
+        font-size: 1.3rem; /* Letra más grande */
+        padding: 12px 30px; /* Botón más grande */
+        transform: scale(1.1);
+    }
+
+    /* Aseguramos que el modal de instalación tenga z-index alto */
+    #install-modal {
+        z-index: 400; /* Por encima de todo */
+    }
 }
 
 /* CELULAR (< 600px) */
@@ -297,12 +314,6 @@ h1, h2 { text-align: center; text-shadow: 0 10px 20px rgba(0,0,0,0.2); font-weig
         padding: 6px 12px;
         font-size: 0.85rem;
         z-index: 200; 
-    }
-    .debug-btn {
-        top: 20px; right: 10px;
-        padding: 4px 8px;
-        font-size: 0.9rem;
-        z-index: 200;
     }
     
     /* Título "Encuentra las palabras" centrado y más abajo */
@@ -345,9 +356,32 @@ h1, h2 { text-align: center; text-shadow: 0 10px 20px rgba(0,0,0,0.2); font-weig
     .menu-buttons { flex-direction: column; gap: 15px; }
     .btn-start { font-size: 1.1rem; padding: 15px 30px; min-width: 180px; }
 
-    /* Scoreboard centrado */
-    .score-item { align-items: center; }
-    .score-rank { text-align: center; font-size: 1.3rem; width: 30px; }
+    /* AJUSTES SCOREBOARD */
+    #scoreboard-screen {
+        justify-content: center; /* Asegura centrado vertical */
+    }
+
+    /* Centrar la lista y limitar ancho */
+    .score-list {
+        width: 90%; 
+        max-width: 350px;
+        margin: 20px auto; /* Auto a los lados centra el bloque */
+        padding: 0;
+    }
+
+    /* Botón Volver del Scoreboard más grande y centrado */
+    #scoreboard-screen .menu-btn {
+        position: static; /* Quitamos posición absoluta para que fluya debajo de la lista */
+        margin-top: 20px;
+        font-size: 1.3rem; /* Letra más grande */
+        padding: 12px 30px; /* Botón más grande */
+        transform: scale(1.1);
+    }
+
+    /* Aseguramos que el modal de instalación tenga z-index alto */
+    #install-modal {
+        z-index: 400; /* Por encima de todo */
+    }
     
     /* Botón Siguiente Nivel más abajo */
     #level-complete-screen .btn-start { margin-top: 50px; }

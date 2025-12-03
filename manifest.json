@@ -2,7 +2,7 @@
   "name": "Sopa de Letras",
   "short_name": "SopaLetras",
   "start_url": "./index.html",
-  "display": "standalone",
+  "display": "fullscreen",
   "background_color": "#07ff49",
   "theme_color": "#764ba2",
   "orientation": "portrait",
