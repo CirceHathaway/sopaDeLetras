@@ -119,6 +119,9 @@ function startMode(mode) {
     
     // OPTIMIZACIÓN: Detener animación en móvil al jugar
     if (isMobile()) stopBackgroundAnimation(); 
+
+    // OPTIMIZACIÓN: Detener animación en tablet al jugar
+    if (isTablet()) stopBackgroundAnimation(); 
     
     initLevel(); 
 }
