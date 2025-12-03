@@ -190,51 +190,42 @@ function initLevel() {
     }
 
     const levelData = gameLevels[currentLevelIndex];
-    currentColorIndex = 0; // Reiniciar colores
+    currentColorIndex = 0; 
 
     // --- LÓGICA ANTI-REPETICIÓN ---
-    // 1. Cargamos el historial de palabras ya jugadas
     let usedWordsHistory = [];
     try {
         usedWordsHistory = JSON.parse(localStorage.getItem('sopa_used_words')) || [];
     } catch (e) { console.warn(e); }
 
-    // 2. Obtenemos todas las palabras posibles para esta dificultad
     const fullPool = wordDictionary[levelData.difficulty];
-    
-    // 3. Filtramos: Nos quedamos solo con las que NO están en el historial
     let availableWords = fullPool.filter(word => !usedWordsHistory.includes(word));
 
-    // 4. Verificación de seguridad:
-    // Si nos quedan menos palabras de las necesarias para el nivel, ¡reiniciamos!
-    // (Significa que el jugador ya vio todas las palabras de esta dificultad)
     if (availableWords.length < levelData.count) {
-        console.log(`¡Se acabaron las palabras de nivel ${levelData.difficulty}! Reiniciando memoria...`);
-        
-        // Quitamos del historial las palabras de esta dificultad para que vuelvan a salir
+        console.log(`Reiniciando historial de palabras para nivel ${levelData.difficulty}`);
         usedWordsHistory = usedWordsHistory.filter(w => !fullPool.includes(w));
-        
-        // Ahora todas están disponibles de nuevo
         availableWords = [...fullPool];
     }
 
-    // 5. Mezclamos las palabras disponibles
+    // Mezclar palabras
     const shuffled = [...availableWords];
     for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     
-    // 6. Seleccionamos las necesarias para este nivel
-    const selectedWords = shuffled.slice(0, levelData.count);
+    // Seleccionar cantidad necesaria
+    let selectedWords = shuffled.slice(0, levelData.count);
 
-    // 7. Guardamos estas nuevas palabras en el historial para no repetirlas la próxima
+    // --- CORRECCIÓN 1: ORDENAR POR LONGITUD ---
+    // Intentamos colocar primero las palabras largas. Esto reduce drásticamente los fallos.
+    selectedWords.sort((a, b) => b.length - a.length);
+
+    // Guardamos en historial (solo las que intentaremos poner)
     const updatedHistory = [...usedWordsHistory, ...selectedWords];
     localStorage.setItem('sopa_used_words', JSON.stringify(updatedHistory));
 
-    const wordsToPlay = selectedWords;
-
-    // --- CONFIGURACIÓN DE GRILLA Y TIEMPO (Igual que antes) ---
+    // --- DIMENSIONES ---
     if (isMobile()) {
         currentRows = 14; currentCols = 10;
     } else if (isTablet()) {
@@ -248,8 +239,38 @@ function initLevel() {
     document.getElementById('status-msg').textContent = "Encuentra las palabras";
     
     stopTimer();
+
+    // --- GENERACIÓN DE GRILLA ---
+    placedWords = [];
+    firstSelection = null;
+    isDragging = false;
+
+    let success = false;
+    let attempts = 0;
+    
+    // --- CORRECCIÓN 2: MÁS INTENTOS (200) ---
+    while(!success && attempts < 200) {
+        grid = Array(currentRows).fill(null).map(() => Array(currentCols).fill(''));
+        placedWords = []; // Reiniciamos lista interna
+        success = true;
+        
+        for (let word of selectedWords) {
+            if (!placeWord(word, currentRows, currentCols)) {
+                success = false; 
+                break; // Si falla una, reiniciamos todo el tablero
+            }
+        }
+        attempts++;
+    }
+
+    // --- CORRECCIÓN 3: SINCRONIZACIÓN FINAL ---
+    // Si después de 200 intentos no entraron todas, usamos SOLO las que sí entraron.
+    // Esto evita errores visuales o de lógica.
+    const finalWordCount = placedWords.length;
+    
+    // Recalculamos el tiempo basado en las palabras que REALMENTE están en el tablero
     if (currentGameMode === 'elimination') {
-        levelSeconds = wordsToPlay.length * 12; 
+        levelSeconds = finalWordCount * 12; 
         updateTimerDisplay();
         timerInterval = setInterval(() => {
             levelSeconds--;
@@ -263,27 +284,6 @@ function initLevel() {
             totalSeconds++;
             updateTimerDisplay();
         }, 1000);
-    }
-
-    placedWords = [];
-    firstSelection = null;
-    isDragging = false;
-
-    let success = false;
-    let attempts = 0;
-    
-    // Intentar colocar palabras (con tu lógica de dificultad ya integrada)
-    while(!success && attempts < 50) {
-        grid = Array(currentRows).fill(null).map(() => Array(currentCols).fill(''));
-        placedWords = [];
-        success = true;
-        for (let word of wordsToPlay) {
-            // Nota: placeWord ya usa la lógica de direcciones que hicimos antes
-            if (!placeWord(word, currentRows, currentCols)) {
-                success = false; break;
-            }
-        }
-        attempts++;
     }
 
     fillEmptySpaces(currentRows, currentCols);
