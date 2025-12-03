@@ -28,6 +28,7 @@ body {
     overflow: hidden;
     user-select: none;
     -webkit-user-select: none;
+    overscroll-behavior: none; /* Evita el rebote/recarga al deslizar en los bordes */
     touch-action: none;
 }
 
@@ -272,6 +273,10 @@ h1, h2 { text-align: center; text-shadow: 0 10px 20px rgba(0,0,0,0.2); font-weig
     
     /* Bajar el texto "Encuentra las palabras" */
     #status-msg { margin: 10px 0 5px 0; }
+
+    .info-bar {
+        margin-top: 25px; /* Bajamos la barra en tabletas */
+    }
 }
 
 /* CELULAR (< 600px) */
@@ -282,7 +287,7 @@ h1, h2 { text-align: center; text-shadow: 0 10px 20px rgba(0,0,0,0.2); font-weig
         justify-content: center;
     }
     
-    .info-bar { margin: 0; padding: 0; gap: 10px; }
+    .info-bar { margin: 20px 0 0 0; padding: 0; gap: 10px; }
     .info-pill { padding: 4px 10px; font-size: 0.8rem; min-width: 55px; }
 
     /* Botones flotantes absolutos */

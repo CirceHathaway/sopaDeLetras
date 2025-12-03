@@ -33,6 +33,7 @@ window.saveScore = saveScore;
 window.showScoreboard = showScoreboard;
 window.solveLevel = solveLevel; 
 window.revivePlayer = revivePlayer;
+window.shareGame = shareGame;
 
 // --- DETECCIÓN Y CONSTANTES ---
 function isMobile() { return window.innerWidth < 600; }
@@ -120,7 +121,7 @@ function startMode(mode) {
     // OPTIMIZACIÓN: Detener animación en móvil al jugar
     if (isMobile()) stopBackgroundAnimation(); 
 
-    // OPTIMIZACIÓN: Detener animación en tablet al jugar
+    // OPTIMIZACIÓN: Detener animación en  al jugar
     if (isTablet()) stopBackgroundAnimation(); 
     
     initLevel(); 
@@ -299,7 +300,39 @@ function handleStart(r, c, cellEl, e) { if(e.cancelable) e.preventDefault(); pla
 function handleMove(r, c, cellEl) { if (!isDragging || !firstSelection) return; updateDragVisuals(firstSelection, {r, c}); }
 function handleTouchMove(e) { if (!isDragging || !firstSelection) return; e.preventDefault(); const touch = e.touches[0]; const target = document.elementFromPoint(touch.clientX, touch.clientY); if (target && target.classList.contains('cell')) { const r = parseInt(target.dataset.r); const c = parseInt(target.dataset.c); updateDragVisuals(firstSelection, {r, c}); } }
 function handleEnd(r, c, cellEl) { if (!isDragging) return; isDragging = false; if (firstSelection && (firstSelection.r !== r || firstSelection.c !== c)) { checkWordAttempt(firstSelection, {r, c}); clearSelectionVisuals(); firstSelection = null; } }
-function handleGlobalMouseUp(e) { if (isDragging) { isDragging = false; const cells = document.querySelectorAll('.cell.selected'); cells.forEach(c => { const r = parseInt(c.dataset.r); const col = parseInt(c.dataset.c); if (firstSelection && (r !== firstSelection.r || col !== firstSelection.c)) { c.classList.remove('selected'); } }); } }
+function handleGlobalMouseUp(e) {
+    if (isDragging && firstSelection) {
+        isDragging = false;
+        
+        // Lógica para detectar dónde se soltó el dedo en pantallas táctiles
+        if (e.changedTouches && e.changedTouches.length > 0) {
+            const touch = e.changedTouches[0];
+            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            
+            // Si soltamos sobre una celda, intentamos validar la palabra
+            if (target && target.classList.contains('cell')) {
+                const r = parseInt(target.dataset.r);
+                const c = parseInt(target.dataset.c);
+                // Verificamos si se formó la palabra
+                checkWordAttempt(firstSelection, { r, c });
+            }
+        }
+        
+        // Limpiamos lo visual (esto ya lo tenías)
+        const cells = document.querySelectorAll('.cell.selected');
+        cells.forEach(c => {
+            const r = parseInt(c.dataset.r);
+            const col = parseInt(c.dataset.c);
+            if (firstSelection && (r !== firstSelection.r || col !== firstSelection.c)) {
+                c.classList.remove('selected');
+            }
+        });
+        
+        // Reiniciamos la selección inicial
+        firstSelection = null;
+        clearSelectionVisuals();
+    }
+}
 function updateDragVisuals(start, end) { const allSelected = document.querySelectorAll('.cell.selected'); allSelected.forEach(el => { const r = parseInt(el.dataset.r); const c = parseInt(el.dataset.c); if (r !== start.r || c !== start.c) el.classList.remove('selected'); }); const dRow = end.r - start.r; const dCol = end.c - start.c; if (dRow === 0 || dCol === 0 || Math.abs(dRow) === Math.abs(dCol)) { const steps = Math.max(Math.abs(dRow), Math.abs(dCol)); const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow); const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol); let r = start.r; let c = start.c; for(let i=0; i<=steps; i++) { const cell = document.querySelector(`.cell[data-r='${r}'][data-c='${c}']`); if (cell) cell.classList.add('selected'); r += stepR; c += stepC; } } }
 function clearSelectionVisuals() { document.querySelectorAll('.cell.selected').forEach(el => el.classList.remove('selected')); }
 function checkWordAttempt(start, end) { const dRow = end.r - start.r; const dCol = end.c - start.c; if (dRow !== 0 && dCol !== 0 && Math.abs(dRow) !== Math.abs(dCol)) return; const steps = Math.max(Math.abs(dRow), Math.abs(dCol)); const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow); const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol); let formedWord = ""; let currR = start.r; let currC = start.c; for (let i = 0; i <= steps; i++) { formedWord += grid[currR][currC]; currR += stepR; currC += stepC; } const reversedWord = formedWord.split('').reverse().join(''); const foundObj = placedWords.find(pw => (pw.word === formedWord || pw.word === reversedWord) && !pw.found); if (foundObj) { foundObj.found = true; markWordFound(foundObj.coords, foundObj.word); document.getElementById('status-msg').textContent = `¡${foundObj.word} encontrada!`; playTone(440, 'sine', 0.1); setTimeout(() => playTone(660, 'sine', 0.15), 100); if (currentGameMode === 'elimination') { levelSeconds += 5; updateTimerDisplay(); } if (placedWords.every(pw => pw.found)) setTimeout(levelComplete, 800); } }
@@ -309,3 +342,22 @@ function nextLevelWithAnimation() { const btn = document.getElementById('btn-nex
 function solveLevel() { placedWords.forEach(pw => { if(!pw.found) { pw.found = true; markWordFound(pw.coords, pw.word); } }); setTimeout(levelComplete, 500); }
 async function saveScore() { const name = document.getElementById('player-name-input').value.trim() || "Anónimo"; const btnSave = document.getElementById('btn-save'); btnSave.classList.add('btn-loading'); let savedToCloud = false; if (db && user) { try { await addDoc(collection(db, 'scores'), { name: name, time: totalSeconds, date: new Date().toISOString(), uid: user.uid }); savedToCloud = true; } catch (e) { console.warn(e); } } if (!savedToCloud) { try { const localData = JSON.parse(localStorage.getItem('sopa_scores') || '[]'); localData.push({ name: name, time: totalSeconds, date: new Date().toISOString(), source: 'local' }); localStorage.setItem('sopa_scores', JSON.stringify(localData)); } catch(e) { console.error(e); } } goToMenu(); setTimeout(() => btnSave.classList.remove('btn-loading'), 500); }
 async function showScoreboard() { showScreen('scoreboard-screen'); const list = document.getElementById('score-list'); list.innerHTML = '<li class="score-item">Cargando...</li>'; let scores = []; if (db) { try { const querySnapshot = await getDocs(collection(db, 'scores')); querySnapshot.forEach(doc => scores.push(doc.data())); } catch (e) { console.warn(e); } } try { const localData = JSON.parse(localStorage.getItem('sopa_scores') || '[]'); scores = [...scores, ...localData]; } catch(e) {} scores.sort((a, b) => a.time - b.time); scores = scores.slice(0, 3); list.innerHTML = ''; if (scores.length === 0) list.innerHTML = '<li class="score-item">Aún no hay récords</li>'; else { scores.forEach((s, index) => { const mins = Math.floor(s.time / 60).toString().padStart(2, '0'); const secs = (s.time % 60).toString().padStart(2, '0'); const li = document.createElement('li'); li.className = 'score-item'; let rankIcon = index === 0 ? '🥇' : (index === 1 ? '🥈' : '🥉'); li.innerHTML = `<span class="score-rank">${rankIcon}</span><span class="score-name">${s.name}</span><span class="score-time">${mins}:${secs}</span>`; list.appendChild(li); }); } }
+async function shareGame() {
+    const shareData = {
+        title: 'Sopa de Letras - Desafío Mental',
+        text: '¡Te desafío a superar mi tiempo en esta Sopa de Letras!',
+        url: 'https://circehathaway.github.io/sopaDeLetras/'
+    };
+
+    try {
+        if (navigator.share) {
+            await navigator.share(shareData);
+        } else {
+            // Fallback para PC si no soporta compartir nativo: Copiar al portapapeles
+            await navigator.clipboard.writeText(shareData.url);
+            alert('¡Enlace copiado al portapapeles!');
+        }
+    } catch (err) {
+        console.error('Error al compartir:', err);
+    }
+}
