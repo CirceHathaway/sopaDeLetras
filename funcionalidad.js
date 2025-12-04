@@ -56,7 +56,7 @@ function isMobile() { return window.innerWidth < 600; }
 function isTablet() { return window.innerWidth >= 600 && window.innerWidth <= 1024; }
 
 function getMaxVisibleWords() {
-    if (isMobile() || isTablet()) return 4;
+    if (isMobile() || isTablet()) return 8;
     return 11; 
 }
 
@@ -432,11 +432,25 @@ function renderGrid(rows, cols) {
     let cellSize, gap;
 
     if (isMobile() || isTablet()) {
-        // Móvil/Tableta: Fit ajustado (Igual que antes)
-        gap = 1; 
-        const w = (wAvailable - (cols - 1) * gap) / cols;
-        const h = (hAvailable - (rows - 1) * gap) / rows;
-        cellSize = Math.floor(Math.min(w, h));
+        // --- MODO AGRESIVO PARA MÓVIL ---
+        // En lugar de medir el contenedor, medimos la PANTALLA completa.
+        
+        // 1. Ancho total de la pantalla
+        wAvailable = window.innerWidth;
+        
+        // 2. Alto total MENOS lo que ocupan los menús (Header + Panel Palabras)
+        hAvailable = window.innerHeight - 170;
+
+        gap = 1; // Espacio mínimo entre letras
+        
+        // Calculamos cuánto mediría la celda si nos guiamos por el ancho
+        const cellByWidth = (wAvailable - (cols * gap)) / cols;
+        
+        // Calculamos cuánto mediría si nos guiamos por el alto
+        const cellByHeight = (hAvailable - (rows * gap)) / rows;
+        
+        // Elegimos la que quepa, pero redondeamos hacia ARRIBA (ceil) para ganar pixeles
+        cellSize = Math.min(cellByWidth, cellByHeight);
         
         gridEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
         gridEl.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
