@@ -180,6 +180,11 @@ function goToMenu() {
     stopTimer(); 
     document.getElementById('confirm-modal').classList.add('hidden'); 
     showScreen('menu-screen'); 
+
+    // Restaurar color base
+    document.body.classList.remove('medio', 'dificil');
+    document.body.classList.add('facil');
+
     // Reactivar animación
     startBackgroundAnimation(); 
 }
@@ -212,7 +217,7 @@ function initLevel() {
         document.getElementById('timer').style.visibility = 'visible';
         document.getElementById('level-indicator').textContent = `Nivel ${levelData.level}/10`;
     }
-
+    document.body.classList.add(difficulty);
     currentColorIndex = 0; 
 
     // --- LÓGICA ANTI-REPETICIÓN (Igual que antes) ---
@@ -358,7 +363,7 @@ function placeWord(word, rows, cols) {
         );
     }
 
-    while (!placed && attempts < 150) { // Aumentamos un poco los intentos
+    while (!placed && attempts < 500) { // Aumentamos un poco los intentos
         const row = Math.floor(Math.random() * rows);
         const col = Math.floor(Math.random() * cols);
         

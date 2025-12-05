@@ -30,6 +30,28 @@ body {
     -webkit-user-select: none;
 }
 
+/* --- COLORES POR DIFICULTAD --- */
+
+/* Definimos la transición suave en el body */
+body {
+    transition: background 1.5s ease-in-out; /* El cambio tardará 1.5 segundos */
+}
+
+/* 1. FÁCIL (Tu color original: Verde a Violeta) */
+body.facil {
+    background: linear-gradient(135deg, #07ff49 0%, #764ba2 100%);
+}
+
+/* 2. MEDIO (Naranja Atardecer a Azul Profundo - Más energético) */
+body.medio {
+    background: linear-gradient(135deg, #FF9966 0%, #FF5E62 50%, #764ba2 100%);
+}
+
+/* 3. DIFÍCIL (Rojo Intenso a Negro/Gris - Peligro/Épico) */
+body.dificil {
+    background: linear-gradient(135deg, #2d6acb 0%, #1005ee 40%, #05f7b298 100%);
+}
+
 /* --- PANTALLAS --- */
 #menu-screen, #mode-screen, #game-screen, #level-complete-screen, #game-over-screen, #scoreboard-screen {
     position: absolute;
@@ -126,7 +148,7 @@ h1, h2 { text-align: center; text-shadow: 0 10px 20px rgba(0,0,0,0.2); font-weig
 @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
 
 #status-msg {
-    color: gold; 
+    color: rgb(0, 0, 0); 
     height: 30px; font-size: 1.1rem; font-weight: bold; text-align: center;
     margin: 5px 0; text-shadow: 0 1px 2px rgba(0,0,0,0.3);
     flex-shrink: 0; width: 100%;
