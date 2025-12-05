@@ -511,10 +511,36 @@ function renderGrid(rows, cols) {
 }
 
 function renderWordList() { const listEl = document.getElementById('word-list'); listEl.innerHTML = ''; placedWords.forEach(obj => { if (obj.rendered) { const li = document.createElement('li'); li.textContent = obj.word; li.id = 'word-' + obj.word; listEl.appendChild(li); } }); }
-function handleStart(r, c, cellEl, e) { if(e.cancelable) e.preventDefault(); playTone(300, 'sine', 0.05); if (!firstSelection) { firstSelection = { r, c, el: cellEl }; cellEl.classList.add('selected'); isDragging = true; } else { if (firstSelection.r === r && firstSelection.c === c) { isDragging = true; } else { checkWordAttempt(firstSelection, { r, c }); clearSelectionVisuals(); firstSelection = null; isDragging = false; } } }
+
+function handleStart(r, c, cellEl, e) { 
+    if(e.cancelable) e.preventDefault(); 
+    playTone(300, 'sine', 0.05); 
+    
+    if (!firstSelection) { 
+        firstSelection = { r, c, el: cellEl }; 
+        cellEl.classList.add('selected'); 
+        isDragging = true; 
+        
+        // --- AGREGAR ESTO: Mostrar la primera letra inmediatamente ---
+        updateSelectionText(firstSelection, {r, c});
+
+    } else { 
+        // (El resto de tu lógica else sigue igual...)
+        if (firstSelection.r === r && firstSelection.c === c) { 
+            isDragging = true; 
+        } else { 
+            checkWordAttempt(firstSelection, { r, c }); 
+            clearSelectionVisuals(); 
+            firstSelection = null; 
+            isDragging = false; 
+        } 
+    } 
+}
+
 function handleMove(r, c, cellEl) { if (!isDragging || !firstSelection) return; updateDragVisuals(firstSelection, {r, c}); }
 function handleTouchMove(e) { if (!isDragging || !firstSelection) return; e.preventDefault(); const touch = e.touches[0]; const target = document.elementFromPoint(touch.clientX, touch.clientY); if (target && target.classList.contains('cell')) { const r = parseInt(target.dataset.r); const c = parseInt(target.dataset.c); updateDragVisuals(firstSelection, {r, c}); } }
 function handleEnd(r, c, cellEl) { if (!isDragging) return; isDragging = false; if (firstSelection && (firstSelection.r !== r || firstSelection.c !== c)) { checkWordAttempt(firstSelection, {r, c}); clearSelectionVisuals(); firstSelection = null; } }
+
 function handleGlobalMouseUp(e) {
     if (isDragging && firstSelection) {
         isDragging = false;
@@ -542,15 +568,104 @@ function handleGlobalMouseUp(e) {
                 c.classList.remove('selected');
             }
         });
+
+        // --- AGREGAR ESTO: Resetear texto si soltó sin validar ---
+        // (Solo si no dice "¡Encontrada!" para no borrar el mensaje de éxito)
+        const msg = document.getElementById('status-msg').textContent;
+        if (!msg.includes('encontrada!')) {
+            document.getElementById('status-msg').textContent = "Encuentra las palabras";
+        }
         
         // Reiniciamos la selección inicial
         firstSelection = null;
         clearSelectionVisuals();
     }
 }
-function updateDragVisuals(start, end) { const allSelected = document.querySelectorAll('.cell.selected'); allSelected.forEach(el => { const r = parseInt(el.dataset.r); const c = parseInt(el.dataset.c); if (r !== start.r || c !== start.c) el.classList.remove('selected'); }); const dRow = end.r - start.r; const dCol = end.c - start.c; if (dRow === 0 || dCol === 0 || Math.abs(dRow) === Math.abs(dCol)) { const steps = Math.max(Math.abs(dRow), Math.abs(dCol)); const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow); const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol); let r = start.r; let c = start.c; for(let i=0; i<=steps; i++) { const cell = document.querySelector(`.cell[data-r='${r}'][data-c='${c}']`); if (cell) cell.classList.add('selected'); r += stepR; c += stepC; } } }
+
+function updateDragVisuals(start, end) {
+    const allSelected = document.querySelectorAll('.cell.selected');
+    allSelected.forEach(el => {
+        const r = parseInt(el.dataset.r);
+        const c = parseInt(el.dataset.c);
+        if (r !== start.r || c !== start.c) el.classList.remove('selected');
+    });
+
+    const dRow = end.r - start.r;
+    const dCol = end.c - start.c;
+
+    if (dRow === 0 || dCol === 0 || Math.abs(dRow) === Math.abs(dCol)) {
+        const steps = Math.max(Math.abs(dRow), Math.abs(dCol));
+        const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow);
+        const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol);
+
+        let r = start.r;
+        let c = start.c;
+
+        for (let i = 0; i <= steps; i++) {
+            const cell = document.querySelector(`.cell[data-r='${r}'][data-c='${c}']`);
+            if (cell) cell.classList.add('selected');
+            r += stepR;
+            c += stepC;
+        }
+    }
+    updateSelectionText(start, end);
+}
+
 function clearSelectionVisuals() { document.querySelectorAll('.cell.selected').forEach(el => el.classList.remove('selected')); }
-function checkWordAttempt(start, end) { const dRow = end.r - start.r; const dCol = end.c - start.c; if (dRow !== 0 && dCol !== 0 && Math.abs(dRow) !== Math.abs(dCol)) return; const steps = Math.max(Math.abs(dRow), Math.abs(dCol)); const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow); const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol); let formedWord = ""; let currR = start.r; let currC = start.c; for (let i = 0; i <= steps; i++) { formedWord += grid[currR][currC]; currR += stepR; currC += stepC; } const reversedWord = formedWord.split('').reverse().join(''); const foundObj = placedWords.find(pw => (pw.word === formedWord || pw.word === reversedWord) && !pw.found); if (foundObj) { foundObj.found = true; markWordFound(foundObj.coords, foundObj.word); document.getElementById('status-msg').textContent = `¡${foundObj.word} encontrada!`; playTone(440, 'sine', 0.1); setTimeout(() => playTone(660, 'sine', 0.15), 100); if (currentGameMode === 'elimination') { levelSeconds += 5; updateTimerDisplay(); } if (placedWords.every(pw => pw.found)) setTimeout(levelComplete, 800); } }
+
+function checkWordAttempt(start, end) {
+    const dRow = end.r - start.r;
+    const dCol = end.c - start.c;
+
+    if (dRow !== 0 && dCol !== 0 && Math.abs(dRow) !== Math.abs(dCol)) return;
+
+    const steps = Math.max(Math.abs(dRow), Math.abs(dCol));
+    const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow);
+    const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol);
+
+    let formedWord = "";
+    let currR = start.r;
+    let currC = start.c;
+
+    for (let i = 0; i <= steps; i++) {
+        formedWord += grid[currR][currC];
+        currR += stepR;
+        currC += stepC;
+    }
+
+    const reversedWord = formedWord.split('').reverse().join('');
+
+    const foundObj = placedWords.find(
+        pw =>
+            (pw.word === formedWord || pw.word === reversedWord) &&
+            !pw.found
+    );
+
+    if (foundObj) {
+        // SI ENCONTRÓ PALABRA
+        foundObj.found = true;
+        markWordFound(foundObj.coords, foundObj.word);
+
+        document.getElementById('status-msg').textContent =
+            `¡${foundObj.word} encontrada!`;
+
+        playTone(440, 'sine', 0.1);
+        setTimeout(() => playTone(660, 'sine', 0.15), 100);
+
+        if (currentGameMode === 'elimination') {
+            levelSeconds += 5;
+            updateTimerDisplay();
+        }
+
+        if (placedWords.every(pw => pw.found))
+            setTimeout(levelComplete, 800);
+    } else {
+        // Volvemos al mensaje por defecto después de un momento breve
+        // O inmediatamente:
+        document.getElementById('status-msg').textContent = "Encuentra las palabras";
+    }
+}
+
 function markWordFound(coords, wordText) {
     // 1. Elegimos el color actual y avanzamos el índice (circularmente)
     const color = highlightColors[currentColorIndex % highlightColors.length];
@@ -799,3 +914,42 @@ window.resetSaoAndExit = function() {
         </button>
     `;
 };
+
+// Función para mostrar la palabra que se está formando en tiempo real
+function updateSelectionText(start, end) {
+    const dRow = end.r - start.r;
+    const dCol = end.c - start.c;
+    const statusEl = document.getElementById('status-msg');
+
+    // 1. Si es solo una celda (el inicio)
+    if (dRow === 0 && dCol === 0) {
+        statusEl.textContent = grid[start.r][start.c];
+        return;
+    }
+
+    // 2. Si la dirección no es válida (movimiento extraño), no mostramos nada nuevo
+    if (dRow !== 0 && dCol !== 0 && Math.abs(dRow) !== Math.abs(dCol)) {
+        return; 
+    }
+
+    // 3. Calcular la palabra
+    const steps = Math.max(Math.abs(dRow), Math.abs(dCol));
+    const stepR = dRow === 0 ? 0 : dRow / Math.abs(dRow);
+    const stepC = dCol === 0 ? 0 : dCol / Math.abs(dCol);
+
+    let currentWord = "";
+    let r = start.r;
+    let c = start.c;
+
+    for (let i = 0; i <= steps; i++) {
+        currentWord += grid[r][c];
+        r += stepR;
+        c += stepC;
+    }
+
+    // 4. Actualizar el título con lo que llevamos seleccionado
+    statusEl.textContent = currentWord;
+    
+    // Opcional: Cambiar color si es una palabra válida (visual extra)
+    // statusEl.style.color = "#ffeb3b"; 
+}
