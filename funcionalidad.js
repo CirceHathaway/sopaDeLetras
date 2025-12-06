@@ -272,16 +272,24 @@ function initLevel() {
     let success = false;
     let attempts = 0;
     
-    while(!success && attempts < 200) {
+    while(!success && attempts < 20000) {
         grid = Array(currentRows).fill(null).map(() => Array(currentCols).fill(''));
         placedWords = [];
         success = true;
         for (let word of selectedWords) {
-            if (!placeWord(word, currentRows, currentCols)) {
+            // CORRECCIÓN AQUÍ: Pasamos 'difficulty' como 4to parámetro
+            if (!placeWord(word, currentRows, currentCols, difficulty)) {
                 success = false; break;
             }
         }
         attempts++;
+    }
+
+    // Si falló 20.000 veces, reiniciamos el nivel para evitar bloqueo infinito
+    if (!success) {
+        console.warn("No se pudo generar el tablero, reintentando...");
+        setTimeout(initLevel, 100);
+        return;
     }
 
     // --- SINCRONIZACIÓN Y TIMERS ---
@@ -337,20 +345,18 @@ function updateTimerDisplay() {
 
 function gameOver() { stopTimer(); const reviveContainer = document.getElementById('revive-container'); if (!hasRevived) reviveContainer.style.display = 'flex'; else { reviveContainer.style.display = 'none'; document.querySelector('#game-over-screen h2').textContent = "Game Over"; } showScreen('game-over-screen'); playTone(150, 'sawtooth', 0.5); }
 function revivePlayer() { hasRevived = true; levelSeconds += 30; showScreen('game-screen'); timerInterval = setInterval(() => { levelSeconds--; totalSeconds++; updateTimerDisplay(); if (levelSeconds <= 0) gameOver(); }, 1000); }
-function placeWord(word, rows, cols) {
+
+function placeWord(word, rows, cols, difficulty) {
     let placed = false;
     let attempts = 0;
-    
-    // Obtenemos la dificultad del nivel actual
-    const difficulty = gameLevels[currentLevelIndex].difficulty;
 
     // DEFINIMOS LAS DIRECCIONES (Cambio en fila, Cambio en columna)
     // 0: Horizontal (→) | 1: Vertical (↓) | 2: Diagonal (↘)
     let allowedDirections = [
         { dr: 0, dc: 1 },  // Horizontal Derecha
         { dr: 1, dc: 0 },  // Vertical Abajo
-        { dr: 1, dc: 1 },   // Diagonal Abajo-Derecha
-        { dr: -1, dc: 1 } // Diagonal Arriba-Derecha
+        { dr: 1, dc: 1 },  // Diagonal Abajo-Derecha
+        { dr: -1, dc: 1 }  // Diagonal Arriba-Derecha
     ];
 
     // Si NO es fácil, agregamos las direcciones invertidas (←, ↑, ↖, etc.)
@@ -363,7 +369,7 @@ function placeWord(word, rows, cols) {
         );
     }
 
-    while (!placed && attempts < 500) { // Aumentamos un poco los intentos
+    while (!placed && attempts < 500) { 
         const row = Math.floor(Math.random() * rows);
         const col = Math.floor(Math.random() * cols);
         

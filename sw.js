@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sopa-letras-v17';
+const CACHE_NAME = 'sopa-letras-v18';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
