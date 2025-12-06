@@ -98,7 +98,7 @@
 
     <!-- PANTALLA SCOREBOARD -->
     <div id="scoreboard-screen" class="hidden">
-        <div class="title-container" style="margin-bottom: 20px;">
+        <div class="title-container" style="margin-bottom: 10px;">
             <div class="title-row">
                 <div class="title-tile static">R</div>
                 <div class="title-tile static">É</div>
@@ -109,10 +109,16 @@
                 <div class="title-tile static">S</div>
             </div>
         </div>
+
+        <div class="score-tabs">
+            <button id="tab-normal" class="score-tab active" onclick="switchScoreTab('normal')">Global 🏆</button>
+            <button id="tab-sao" class="score-tab" onclick="switchScoreTab('sao')">Modo SAO ⚔️</button>
+        </div>
+
         <ul id="score-list" class="score-list">
             <li class="score-item">Cargando...</li>
         </ul>
-        <button class="menu-btn" style="position: relative; top:0; left:0; margin-top: 30px;" onclick="goToMenu()">Volver</button>
+        <button class="menu-btn" style="position: relative; top:0; left:0; margin-top: 20px;" onclick="goToMenu()">Volver</button>
     </div>
 
     <!-- PANTALLA DE JUEGO -->

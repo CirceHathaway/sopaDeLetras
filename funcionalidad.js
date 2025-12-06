@@ -47,9 +47,12 @@ window.nextLevelWithAnimation = nextLevelWithAnimation;
 window.confirmExit = confirmExit;
 window.closeConfirm = closeConfirm;
 window.saveScore = saveScore;
-window.showScoreboard = showScoreboard; 
+window.showScoreboard = showScoreboard;
+window.switchScoreTab = switchScoreTab;
 window.revivePlayer = revivePlayer;
 window.shareGame = shareGame;
+
+let currentScoreTab = 'normal'; // Para saber qué ranking estamos viendo
 
 // --- DETECCIÓN Y CONSTANTES ---
 function isMobile() { return window.innerWidth < 600; }
@@ -153,19 +156,28 @@ function showModeSelection() {
 
 function startMode(mode) { 
     currentGameMode = mode; 
-    totalSeconds = 0; 
     hasRevived = false; 
-
-    // --- NUEVO: REINICIAMOS LA MEMORIA DE PALABRAS ---
-    localStorage.removeItem('sopa_used_words');
 
     // --- LÓGICA MODO SAO ---
     if (currentGameMode === 'sao') {
-        // Intentamos recuperar el nivel guardado (por defecto nivel 1, que es índice 0)
+        // Recuperar nivel
         const savedLevel = localStorage.getItem('sopa_sao_level');
         currentLevelIndex = savedLevel ? parseInt(savedLevel) : 0;
+        
+        // Recuperar TIEMPO ACUMULADO (Nuevo)
+        const savedTime = localStorage.getItem('sopa_sao_time');
+        totalSeconds = savedTime ? parseInt(savedTime) : 0;
+
+        // Limpiar historial de palabras para que no se llene infinitamente en 100 niveles
+        // Opcional: Si quieres que recuerde palabras de los 100 niveles, borra esta línea. 
+        // Yo recomiendo borrarlo al iniciar sesión nueva de juego para evitar problemas de memoria.
+        if(currentLevelIndex === 0) localStorage.removeItem('sopa_used_words');
+
     } else {
+        // Modos normales reinician todo
         currentLevelIndex = 0; 
+        totalSeconds = 0;
+        localStorage.removeItem('sopa_used_words');
     }
 
     showScreen('game-screen'); 
@@ -178,6 +190,12 @@ function startMode(mode) {
 
 function goToMenu() { 
     stopTimer(); 
+    
+    // --- GUARDAR TIEMPO SI ESTAMOS EN SAO ---
+    if (currentGameMode === 'sao') {
+        localStorage.setItem('sopa_sao_time', totalSeconds);
+    }
+
     document.getElementById('confirm-modal').classList.add('hidden'); 
     showScreen('menu-screen'); 
 
@@ -199,7 +217,7 @@ function initLevel() {
     let levelData;
     let difficulty;
 
-    // --- LÓGICA DIFERENCIADA PARA SAO ---
+    // --- 1. CONFIGURACIÓN DE NIVEL ---
     if (currentGameMode === 'sao') {
         difficulty = getSaoDifficulty(currentLevelIndex);
         levelData = {
@@ -207,24 +225,23 @@ function initLevel() {
             difficulty: difficulty,
             count: 14 // SIEMPRE 14 palabras
         };
-        // Ocultar timer en modo SAO
-        document.getElementById('timer').style.visibility = 'hidden';
         document.getElementById('level-indicator').textContent = `Piso ${levelData.level}/100`;
     } else {
-        // Lógica normal
         levelData = gameLevels[currentLevelIndex];
         difficulty = levelData.difficulty;
-        document.getElementById('timer').style.visibility = 'visible';
         document.getElementById('level-indicator').textContent = `Nivel ${levelData.level}/10`;
     }
+    
+    // Aplicamos clase CSS al body
+    document.body.classList.remove('facil', 'medio', 'dificil');
     document.body.classList.add(difficulty);
     currentColorIndex = 0; 
 
-    // --- LÓGICA ANTI-REPETICIÓN (Igual que antes) ---
+    // --- 2. SELECCIÓN DE PALABRAS ---
     let usedWordsHistory = [];
     try { usedWordsHistory = JSON.parse(localStorage.getItem('sopa_used_words')) || []; } catch (e) {}
 
-    const fullPool = wordDictionary[difficulty]; // Usamos la dificultad calculada
+    const fullPool = wordDictionary[difficulty];
     let availableWords = fullPool.filter(word => !usedWordsHistory.includes(word));
 
     if (availableWords.length < levelData.count) {
@@ -244,28 +261,24 @@ function initLevel() {
     const updatedHistory = [...usedWordsHistory, ...selectedWords];
     localStorage.setItem('sopa_used_words', JSON.stringify(updatedHistory));
 
-    // --- DIMENSIONES ---
+    // --- 3. DIMENSIONES DEL TABLERO ---
     if (isMobile()) {
         currentRows = 14; currentCols = 10;
     } else if (isTablet()) {
         currentRows = 16; currentCols = 15;
     } else {
         if (currentGameMode === 'sao') {
-            // ESCRITORIO SAO: Fijo como el nivel 10
-            currentCols = 17;
-            currentRows = 11; 
+            currentCols = 17; currentRows = 11; 
         } else {
-            // ESCRITORIO NORMAL
             currentCols = levelData.size;
             currentRows = (levelData.level >= 5) ? 11 : levelData.size;
         }
     }
     
     document.getElementById('status-msg').textContent = "Encuentra las palabras";
-    
     stopTimer();
 
-    // --- GENERACIÓN DE GRILLA (Igual que antes) ---
+    // --- 4. GENERACIÓN DE GRILLA ---
     placedWords = [];
     firstSelection = null;
     isDragging = false;
@@ -277,7 +290,7 @@ function initLevel() {
         placedWords = [];
         success = true;
         for (let word of selectedWords) {
-            // CORRECCIÓN AQUÍ: Pasamos 'difficulty' como 4to parámetro
+            // CRÍTICO: Pasamos 'difficulty' para evitar el crash del nivel 11+
             if (!placeWord(word, currentRows, currentCols, difficulty)) {
                 success = false; break;
             }
@@ -285,37 +298,51 @@ function initLevel() {
         attempts++;
     }
 
-    // Si falló 20.000 veces, reiniciamos el nivel para evitar bloqueo infinito
     if (!success) {
-        console.warn("No se pudo generar el tablero, reintentando...");
+        console.warn("Reintentando generación...");
         setTimeout(initLevel, 100);
         return;
     }
 
-    // --- SINCRONIZACIÓN Y TIMERS ---
+    // --- 5. TIMERS (Lógica Ajustada - Punto G) ---
     const finalWordCount = placedWords.length;
     
-    // En SAO no iniciamos timer, pero en los otros sí
-    if (currentGameMode !== 'sao') {
-        if (currentGameMode === 'elimination') {
-            levelSeconds = finalWordCount * 12; 
+    if (currentGameMode === 'elimination') {
+        // MODO ELIMINACIÓN (Cuenta regresiva)
+        levelSeconds = finalWordCount * 12; 
+        document.getElementById('timer').style.visibility = 'visible';
+        updateTimerDisplay();
+        
+        timerInterval = setInterval(() => {
+            levelSeconds--; 
+            totalSeconds++; // Sumamos tiempo total jugado
             updateTimerDisplay();
-            timerInterval = setInterval(() => {
-                levelSeconds--; totalSeconds++; updateTimerDisplay();
-                if (levelSeconds <= 0) gameOver();
-            }, 1000);
-        } else {
-            updateTimerDisplay();
-            timerInterval = setInterval(() => {
-                totalSeconds++; updateTimerDisplay();
-            }, 1000);
-        }
+            if (levelSeconds <= 0) gameOver();
+        }, 1000);
+
     } else {
-        // En SAO solo limpiamos el texto del timer por si acaso
-        document.getElementById('timer').textContent = "∞";
-        document.getElementById('timer').style.visibility = 'visible'; // Lo mostramos como infinito
+        // MODO TRADICIONAL Y SAO (Cuenta progresiva)
+        
+        // Configuración Visual
+        if (currentGameMode === 'sao') {
+            document.getElementById('timer').style.visibility = 'hidden'; // Oculto en SAO
+        } else {
+            document.getElementById('timer').style.visibility = 'visible'; // Visible en Tradicional
+            updateTimerDisplay();
+        }
+
+        // Lógica de conteo (IMPORTANTE: Corre en ambos modos)
+        timerInterval = setInterval(() => {
+            totalSeconds++; // Aquí se acumula el tiempo de SAO y Tradicional
+            
+            // Solo actualizamos la vista si NO es SAO
+            if (currentGameMode !== 'sao') {
+                updateTimerDisplay();
+            }
+        }, 1000);
     }
 
+    // --- 6. RENDERIZADO FINAL ---
     fillEmptySpaces(currentRows, currentCols);
     setTimeout(() => { renderGrid(currentRows, currentCols); }, 50);
     
@@ -325,6 +352,7 @@ function initLevel() {
 }
 
 function stopTimer() { if (timerInterval) clearInterval(timerInterval); }
+
 function updateTimerDisplay() {
     const timerEl = document.getElementById('timer');
     if (currentGameMode === 'elimination') {
@@ -722,51 +750,48 @@ function levelComplete() {
     const btnNext = document.getElementById('btn-next');
     const finalForm = document.getElementById('final-form');
 
+    // --- NUEVO: GUARDAR TIEMPO SAO AL TERMINAR NIVEL ---
+    if (currentGameMode === 'sao') {
+        localStorage.setItem('sopa_sao_time', totalSeconds);
+    }
+
     // Lógica específica MODO SAO
     if (currentGameMode === 'sao') {
-        // Guardamos el progreso del SIGUIENTE nivel
-        const nextLevel = currentLevelIndex + 1; // Índice + 1 = siguiente índice
+        const nextLevel = currentLevelIndex + 1;
         
-        if (nextLevel >= 100) {
-            // --- JUEGO TERMINADO (NIVEL 100 SUPERADO) ---
-            renderTitleTiles(containerId, "¡CIMA CONQUISTADA!");
+        // --- JUEGO TERMINADO (NIVEL 100 SUPERADO) ---
+        // Cambiamos >= 100 para probar. En producción debe ser >= 100.
+        if (nextLevel >= 100) { 
+            renderTitleTiles(containerId, "¡CONGRATULATION!"); // <--- CAMBIO SOLICITADO
             btnNext.classList.add('hidden');
             
-            // Creamos un botón especial para volver al menú y resetear
+            // Mostramos el formulario de guardar IGUAL que en los otros modos
             finalForm.classList.remove('hidden');
-            finalForm.innerHTML = `
-                <p style="text-align:center;">Has completado los 100 pisos.</p>
-                <button class="btn-start" onclick="resetSaoAndExit()">
-                    <span class="btn-text">Volver al Menú</span>
-                </button>
-            `;
-            // Borramos progreso para que pueda jugar de nuevo
-            localStorage.removeItem('sopa_sao_level'); 
+            
+            // Aseguramos que el input esté limpio
+            const inputName = document.getElementById('player-name-input');
+            if(inputName) inputName.value = "";
+            
+            // Mostramos el tiempo total final
+            const tmins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+            const tsecs = (totalSeconds % 60).toString().padStart(2, '0');
+            document.getElementById('level-stats').textContent = `Tiempo Final SAO: ${tmins}:${tsecs}`;
+
         } else {
-            // --- NIVEL INTERMEDIO COMPLETADO ---
+            // Nivel intermedio SAO
             renderTitleTiles(containerId, "PISO COMPLETADO");
             btnNext.classList.remove('hidden');
             finalForm.classList.add('hidden');
-            
             // Guardamos que el usuario ya está en el siguiente nivel (índice)
             localStorage.setItem('sopa_sao_level', nextLevel);
         }
 
     } else {
-        // --- LÓGICA MODOS NORMALES (La que ya tenías) ---
+        // MODOS NORMALES
         if(currentLevelIndex === gameLevels.length - 1) {
             renderTitleTiles(containerId, "JUEGO COMPLETADO");
             btnNext.classList.add('hidden');
             finalForm.classList.remove('hidden');
-            // Restauramos el formulario original si fue modificado por SAO
-            if(!document.getElementById('player-name-input')) {
-                finalForm.innerHTML = `
-                    <input type="text" id="player-name-input" placeholder="Tu Nombre (Máx 14)" maxlength="14">
-                    <button id="btn-save" class="btn-start" onclick="saveScore()">
-                        <span class="btn-text">Guardar</span>
-                    </button>
-                `;
-            }
         } else {
             renderTitleTiles(containerId, "NIVEL COMPLETADO");
             btnNext.classList.remove('hidden');
@@ -802,8 +827,128 @@ function nextLevelWithAnimation() {
     }, 1500); 
 }
 
-async function saveScore() { const name = document.getElementById('player-name-input').value.trim() || "Anónimo"; const btnSave = document.getElementById('btn-save'); btnSave.classList.add('btn-loading'); let savedToCloud = false; if (db && user) { try { await addDoc(collection(db, 'scores'), { name: name, time: totalSeconds, date: new Date().toISOString(), uid: user.uid }); savedToCloud = true; } catch (e) { console.warn(e); } } if (!savedToCloud) { try { const localData = JSON.parse(localStorage.getItem('sopa_scores') || '[]'); localData.push({ name: name, time: totalSeconds, date: new Date().toISOString(), source: 'local' }); localStorage.setItem('sopa_scores', JSON.stringify(localData)); } catch(e) { console.error(e); } } goToMenu(); setTimeout(() => btnSave.classList.remove('btn-loading'), 500); }
-async function showScoreboard() { showScreen('scoreboard-screen'); const list = document.getElementById('score-list'); list.innerHTML = '<li class="score-item">Cargando...</li>'; let scores = []; if (db) { try { const querySnapshot = await getDocs(collection(db, 'scores')); querySnapshot.forEach(doc => scores.push(doc.data())); } catch (e) { console.warn(e); } } try { const localData = JSON.parse(localStorage.getItem('sopa_scores') || '[]'); scores = [...scores, ...localData]; } catch(e) {} scores.sort((a, b) => a.time - b.time); scores = scores.slice(0, 3); list.innerHTML = ''; if (scores.length === 0) list.innerHTML = '<li class="score-item">Aún no hay récords</li>'; else { scores.forEach((s, index) => { const mins = Math.floor(s.time / 60).toString().padStart(2, '0'); const secs = (s.time % 60).toString().padStart(2, '0'); const li = document.createElement('li'); li.className = 'score-item'; let rankIcon = index === 0 ? '🥇' : (index === 1 ? '🥈' : '🥉'); li.innerHTML = `<span class="score-rank">${rankIcon}</span><span class="score-name">${s.name}</span><span class="score-time">${mins}:${secs}</span>`; list.appendChild(li); }); } }
+async function saveScore() { 
+    const name = document.getElementById('player-name-input').value.trim() || "Anónimo"; 
+    const btnSave = document.getElementById('btn-save'); 
+    btnSave.classList.add('btn-loading'); 
+
+    // --- AQUÍ ESTÁ EL TRUCO ---
+    // Definimos el nombre de la colección según el modo
+    let nombreColeccion = 'scores'; // Por defecto (Tradicional)
+    
+    if (currentGameMode === 'sao') {
+        nombreColeccion = 'sao_records'; // Nombre de tu SEGUNDA base de datos
+    }
+
+    let savedToCloud = false; 
+
+    // GUARDAR EN FIREBASE
+    if (db && user) { 
+        try { 
+            // Usamos la variable 'nombreColeccion' en lugar del texto fijo 'scores'
+            await addDoc(collection(db, nombreColeccion), { 
+                name: name, 
+                time: totalSeconds, 
+                date: new Date().toISOString(), 
+                uid: user.uid,
+                mode: currentGameMode 
+            }); 
+            savedToCloud = true; 
+            console.log(`Guardado exitosamente en: ${nombreColeccion}`);
+        } catch (e) { console.warn(e); } 
+    } 
+
+    // GUARDAR EN MEMORIA LOCAL (Respaldo)
+    if (!savedToCloud) { 
+        try { 
+            // También separamos la memoria local
+            const localKey = currentGameMode === 'sao' ? 'sopa_sao_local' : 'sopa_scores';
+            const localData = JSON.parse(localStorage.getItem(localKey) || '[]'); 
+            localData.push({ name: name, time: totalSeconds, date: new Date().toISOString(), source: 'local' }); 
+            localStorage.setItem(localKey, JSON.stringify(localData)); 
+        } catch(e) { console.error(e); } 
+    } 
+
+    // Limpieza post-guardado
+    if (currentGameMode === 'sao') {
+        localStorage.removeItem('sopa_sao_level');
+        localStorage.removeItem('sopa_sao_time');
+    }
+
+    goToMenu(); 
+    setTimeout(() => btnSave.classList.remove('btn-loading'), 500); 
+}
+
+function switchScoreTab(tab) {
+    currentScoreTab = tab;
+    
+    // Actualizar botones visualmente
+    document.getElementById('tab-normal').classList.toggle('active', tab === 'normal');
+    document.getElementById('tab-sao').classList.toggle('active', tab === 'sao');
+    
+    // Recargar la lista
+    showScoreboard(true); // true indica que es un refresco interno
+}
+
+async function showScoreboard(isRefresh = false) { 
+    if (!isRefresh) showScreen('scoreboard-screen'); 
+    
+    const list = document.getElementById('score-list'); 
+    list.innerHTML = '<li class="score-item">Cargando...</li>'; 
+    
+    let scores = []; 
+    // Seleccionar colección y límite según la pestaña activa
+    const collectionName = currentScoreTab === 'sao' ? 'sao_records' : 'scores';
+    const limitNum = currentScoreTab === 'sao' ? 5 : 3;
+
+    // FETCH FIREBASE
+    if (db) { 
+        try { 
+            // Nota: Para ordenar por tiempo en Firestore idealmente necesitas un índice compuesto,
+            // pero si son pocos datos, lo ordenamos en cliente.
+            const querySnapshot = await getDocs(collection(db, collectionName)); 
+            querySnapshot.forEach(doc => scores.push(doc.data())); 
+        } catch (e) { console.warn(e); } 
+    } 
+
+    // FETCH LOCAL
+    try { 
+        const localKey = currentScoreTab === 'sao' ? 'sopa_sao_scores_local' : 'sopa_scores';
+        const localData = JSON.parse(localStorage.getItem(localKey) || '[]'); 
+        scores = [...scores, ...localData]; 
+    } catch(e) {} 
+
+    // ORDENAR: Menor tiempo es mejor
+    scores.sort((a, b) => a.time - b.time); 
+    
+    // CORTAR: Top 3 o Top 5
+    scores = scores.slice(0, limitNum); 
+
+    list.innerHTML = ''; 
+    if (scores.length === 0) {
+        list.innerHTML = '<li class="score-item">Aún no hay récords</li>'; 
+    } else { 
+        scores.forEach((s, index) => { 
+            // Formato de tiempo
+            const mins = Math.floor(s.time / 60).toString().padStart(2, '0'); 
+            const secs = (s.time % 60).toString().padStart(2, '0'); 
+            
+            const li = document.createElement('li'); 
+            li.className = 'score-item'; 
+            
+            // Iconos de medallas solo para top 3
+            let rankIcon = '';
+            if (index === 0) rankIcon = '🥇';
+            else if (index === 1) rankIcon = '🥈';
+            else if (index === 2) rankIcon = '🥉';
+            else rankIcon = `#${index + 1}`; // Para puesto 4 y 5
+
+            li.innerHTML = `<span class="score-rank">${rankIcon}</span><span class="score-name">${s.name}</span><span class="score-time">${mins}:${secs}</span>`; 
+            list.appendChild(li); 
+        }); 
+    } 
+}
+
 async function shareGame() {
     const shareData = {
         title: 'Sopa de Letras - Desafío Mental',
