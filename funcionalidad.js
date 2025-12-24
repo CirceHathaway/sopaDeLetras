@@ -1,26 +1,50 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+// --- VARIABLES GLOBALES DE FIREBASE (Inicialmente nulas) ---
+let app, auth, db, user;
+let addDoc, collection, getDocs, signInAnonymously;
 
+// Configuración
 const firebaseConfig = {
-  apiKey: "AIzaSyBXOH-m6L0kS-0qVSAAh837R-lVIlFt2ZQ",
-  authDomain: "sopa-de-letras-1bb46.firebaseapp.com",
-  projectId: "sopa-de-letras-1bb46",
-  storageBucket: "sopa-de-letras-1bb46.firebasestorage.app",
-  messagingSenderId: "931258212814",
-  appId: "1:931258212814:web:456b55dadb16602fb9cb9f"
+    apiKey: "AIzaSyBXOH-m6L0kS-0qVSAAh837R-lVIlFt2ZQ",
+    authDomain: "sopa-de-letras-1bb46.firebaseapp.com",
+    projectId: "sopa-de-letras-1bb46",
+    storageBucket: "sopa-de-letras-1bb46.firebasestorage.app",
+    messagingSenderId: "931258212814",
+    appId: "1:931258212814:web:456b55dadb16602fb9cb9f"
 };
 
-let db;
-let auth;
-let user;
+// --- FUNCIÓN DE INICIALIZACIÓN ROBUSTA ---
+async function initFirebase() {
+    try {
+        // Intentamos importar Firebase dinámicamente
+        // Si no hay internet, esto fallará y saltará al catch, permitiendo jugar offline
+        const firebaseApp = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+        const firebaseAuth = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+        const firebaseFirestore = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
 
-try {
-    const app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-    signInAnonymously(auth).then(u => user = u.user).catch(console.error);
-} catch (e) { console.error(e); }
+        // Asignamos las funciones a las variables globales
+        addDoc = firebaseFirestore.addDoc;
+        collection = firebaseFirestore.collection;
+        getDocs = firebaseFirestore.getDocs;
+        signInAnonymously = firebaseAuth.signInAnonymously;
+
+        // Inicializamos la App
+        app = firebaseApp.initializeApp(firebaseConfig);
+        auth = firebaseAuth.getAuth(app);
+        db = firebaseFirestore.getFirestore(app);
+
+        // Login anónimo
+        const u = await signInAnonymously(auth);
+        user = u.user;
+        console.log("Firebase conectado online");
+
+    } catch (e) {
+        console.log("Modo Offline activo: No se pudo cargar Firebase (o error de red).");
+        db = null; // Nos aseguramos que db sea nulo para usar localStorage
+    }
+}
+
+// Iniciamos Firebase en segundo plano
+initFirebase();
 
 // VARIABLE PARA GUARDAR EL DICCIONARIO
 let wordDictionary = null;
@@ -1109,3 +1133,4 @@ function updateSelectionText(start, end) {
     // Opcional: Cambiar color si es una palabra válida (visual extra)
     // statusEl.style.color = "#ffeb3b"; 
 }
+
